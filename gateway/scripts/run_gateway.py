@@ -1,7 +1,7 @@
 import os
 import sys
 
-# 1. Protect against Windows GBK encoding crashes
+# 1. Protect against Windows console encoding issues
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -22,9 +22,9 @@ if PROJECT_ROOT not in sys.path:
 
 print("=======================================================")
 print("   [Xiaozhi AI Voice Gateway v2.0]")
-print("   小智 AI 语音网关 & 电脑智能管家")
+print("   小智 AI 语音网关 & 跨设备服务平台")
 print("=======================================================")
-print(f"[*] 工作目录: {PROJECT_ROOT}")
+print(f"[*] 工作根目录: {PROJECT_ROOT}")
 
 # 3. Clean port 8001
 try:
@@ -64,8 +64,8 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 finally:
-    print("\n[!] 网关已停止。")
+    print("\n[!] 网关服务已停止。")
     try:
-        input("按 Enter 回车键关闭窗口...")
+        input("按 Enter 回车键退出窗口...")
     except Exception:
         pass
