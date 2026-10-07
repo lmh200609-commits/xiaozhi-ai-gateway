@@ -4,7 +4,7 @@ cd /d "%~dp0"
 title Flash Xiaozhi Board Config
 
 echo ============================================================
-echo      Xiaozhi Board IP & Config Flash Tool
+echo      Xiaozhi Board IP and Config Flash Tool
 echo ============================================================
 echo [*] Working Directory: %~dp0
 echo.

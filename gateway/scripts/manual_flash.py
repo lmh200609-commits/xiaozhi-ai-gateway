@@ -3,6 +3,8 @@ Manual / Dedicated tool to flash Gateway IP & Wi-Fi to Xiaozhi board via USB.
 """
 import os
 import sys
+
+# 1. Ensure utf-8 output in Windows CMD
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -10,12 +12,17 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
+from pathlib import Path
+
+# 2. Add project root to sys.path
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 import re
 import subprocess
-from pathlib import Path
 import serial.tools.list_ports
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
 NVS_CSV = BASE_DIR / "nvs_config.csv"
 NVS_BIN = BASE_DIR / "nvs_custom.bin"
 
@@ -45,7 +52,7 @@ def main():
         print("   -> 部分开发板需要 CH340 或 CP2102 驱动，可从芯片官网下载安装。")
         print("-" * 60)
         print("\n[免插线替代方案]：")
-        print(f"小智连上 Wi-Fi 后报错 http://10.172.207.206:8001/ota/ 是因为小智还在请求旧 IP！")
+        print(f"小智连上 Wi-Fi 后报错是因为小智还在请求旧 IP！")
         print(f"你也可以长按开发板按键或重启小智，在小智的『配网页面 (192.168.4.1)』中，")
         print(f"将 OTA 网址手动修改为: http://{cur_ip}:8001/ota/ 即可！\n")
         return
