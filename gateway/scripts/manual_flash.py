@@ -65,7 +65,7 @@ def main():
     print(f"\n[*] 默认选择串口: {target_port}")
 
     # 3. Update NVS and flash
-    sync_module.sync_nvs(force_flash=True)
+    sync_module.sync_nvs(target_port=target_port, force_flash=True)
     print("\n" + "=" * 60)
     print("操作完成！请观察开发板屏幕是否已成功联网连接网关。")
     print("=" * 60 + "\n")

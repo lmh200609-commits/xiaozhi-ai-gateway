@@ -46,14 +46,21 @@ def get_current_wlan_ip():
 
 def find_esp32_port():
     """Finds COM port for connected ESP32 board."""
-    for p in serial.tools.list_ports.comports():
+    all_ports = list(serial.tools.list_ports.comports())
+    for p in all_ports:
         hwid = (p.hwid or "").lower()
         desc = (p.description or "").lower()
-        if any(k in hwid or k in desc for k in ["303a:1001", "espressif", "ch340", "ch341", "ch343", "cp210", "usb-serial", "uart"]):
+        if any(k in hwid or k in desc for k in [
+            "303a", "espressif", "ch340", "ch341", "ch343", 
+            "cp210", "cp2102", "cp2104", "usb-serial", "uart", 
+            "serial", "串行"
+        ]):
             return p.device
+    if len(all_ports) == 1:
+        return all_ports[0].device
     return None
 
-def sync_nvs(force_flash=False):
+def sync_nvs(target_port=None, force_flash=False):
     ip = get_current_wlan_ip()
     print(f"[Auto-Sync] 当前电脑 Wi-Fi 局域网 IP: {ip}")
     
@@ -78,11 +85,11 @@ def sync_nvs(force_flash=False):
             
     updated_content = "\n".join(new_lines) + "\n"
 
-    port = find_esp32_port()
+    port = target_port or find_esp32_port()
 
-    # 1. Update CSV and recompile BIN if IP changed or BIN missing
-    if needs_update or not NVS_BIN.exists():
-        print(f"[Auto-Sync] IP 发生变化 (或新生成): 更新为 {ip}，正在生成固件配置...")
+    # 1. Update CSV and recompile BIN if IP changed or BIN missing or force_flash
+    if needs_update or not NVS_BIN.exists() or force_flash:
+        print(f"[Auto-Sync] 正在生成固件配置 (IP: {ip})...")
         NVS_CSV.write_text(updated_content, encoding="utf-8")
         
         # Compile NVS binary
