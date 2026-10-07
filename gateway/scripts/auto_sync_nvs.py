@@ -49,11 +49,11 @@ def find_esp32_port():
     for p in serial.tools.list_ports.comports():
         hwid = (p.hwid or "").lower()
         desc = (p.description or "").lower()
-        if "303a:1001" in hwid or "espressif" in desc or "ch340" in desc or "cp210" in desc:
+        if any(k in hwid or k in desc for k in ["303a:1001", "espressif", "ch340", "ch341", "ch343", "cp210", "usb-serial", "uart"]):
             return p.device
     return None
 
-def sync_nvs():
+def sync_nvs(force_flash=False):
     ip = get_current_wlan_ip()
     print(f"[Auto-Sync] 当前电脑 Wi-Fi 局域网 IP: {ip}")
     
@@ -79,8 +79,10 @@ def sync_nvs():
     updated_content = "\n".join(new_lines) + "\n"
 
     port = find_esp32_port()
+
+    # 1. Update CSV and recompile BIN if IP changed or BIN missing
     if needs_update or not NVS_BIN.exists():
-        print(f"[Auto-Sync] IP 发生变化 (或新生成): 更新为 {ip}，重新生成固件配置...")
+        print(f"[Auto-Sync] IP 发生变化 (或新生成): 更新为 {ip}，正在生成固件配置...")
         NVS_CSV.write_text(updated_content, encoding="utf-8")
         
         # Compile NVS binary
@@ -94,23 +96,24 @@ def sync_nvs():
             return ip
             
         print("[Auto-Sync] 已成功生成最新固件配置 nvs_custom.bin")
-
-        if port:
-            print(f"[Auto-Sync] 检测到小智开发板连接在 {port}，正在一键写入新 IP 配置...")
-            cmd_flash = [
-                sys.executable, "-m", "esptool",
-                "-p", port, "write-flash", "0x9000", str(NVS_BIN)
-            ]
-            res_flash = subprocess.run(cmd_flash, capture_output=True, text=True, cwd=str(BASE_DIR))
-            if res_flash.returncode == 0:
-                print(f"[Auto-Sync] [成功] 已自动为小智开发板更新 IP: {ip}！")
-            else:
-                print(f"[Auto-Sync] 写入失败: {res_flash.stderr}")
-        else:
-            print("[Auto-Sync] 小智未通过 USB 连接电脑，已更新本地文件。")
     else:
-        print(f"[Auto-Sync] 当前配置中的 IP {ip} 与电脑完全一致，无需重新写入。")
-        
+        print(f"[Auto-Sync] 本地固件配置已与当前电脑 IP {ip} 保持一致。")
+
+    # 2. Flash to board if port found
+    if port and NVS_BIN.exists():
+        print(f"[Auto-Sync] 检测到小智开发板连接在 {port}，正在一键写入新配置 (IP: {ip})...")
+        cmd_flash = [
+            sys.executable, "-m", "esptool",
+            "-p", port, "write-flash", "0x9000", str(NVS_BIN)
+        ]
+        res_flash = subprocess.run(cmd_flash, capture_output=True, text=True, cwd=str(BASE_DIR))
+        if res_flash.returncode == 0:
+            print(f"[Auto-Sync] [成功] 已自动为小智开发板更新 IP: {ip}！开发板将自动重启连接。")
+        else:
+            print(f"[Auto-Sync] 写入失败: {res_flash.stderr}")
+    elif not port:
+        print(f"[Auto-Sync] 提示: 未检测到小智 USB 串口连接 (已更新本地文件配置)。")
+
     return ip
 
 if __name__ == "__main__":
