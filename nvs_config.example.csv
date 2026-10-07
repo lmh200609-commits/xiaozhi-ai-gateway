@@ -1,0 +1,8 @@
+key,type,encoding,value
+wifi,namespace,,
+ssid,data,string,YOUR_WIFI_SSID
+password,data,string,YOUR_WIFI_PASSWORD
+ota_url,data,string,http://192.168.1.100:8001/ota/
+websocket,namespace,,
+url,data,string,ws://192.168.1.100:8001/xiaozhi/v1/
+version,data,u32,1

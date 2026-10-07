@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小智 AI 硬件专属中转管理平台</title>
+  <link rel="stylesheet" href="style.css?v=2.2.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <div class="brand-area">
+          <div class="brand-icon">🤖</div>
+          <div>
+            <div class="brand-title">小智智控台</div>
+            <span class="brand-sub">ESP32 专属网关</span>
+          </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="nav-menu">
+          <button class="nav-item active" id="nav-devices" onclick="switchTab('devices')">
+            <span class="item-icon">📱</span>
+            <span>设备监控台</span>
+          </button>
+          <button class="nav-item" id="nav-knowledge" onclick="switchTab('knowledge')">
+            <span class="item-icon">🏛️</span>
+            <span>知识区管理 (中枢)</span>
+          </button>
+          <button class="nav-item" id="nav-roles" onclick="switchTab('roles')">
+            <span class="item-icon">🎭</span>
+            <span>角色人设与音色</span>
+          </button>
+          <button class="nav-item" id="nav-chat" onclick="switchTab('chat')">
+            <span class="item-icon">💬</span>
+            <span>交互仿真与日志</span>
+          </button>
+          <button class="nav-item" id="nav-settings" onclick="switchTab('settings')">
+            <span class="item-icon">⚙️</span>
+            <span>网关系统配置</span>
+          </button>
+          <a href="/kiosk.html" target="_blank" class="nav-item" style="text-decoration:none; margin-top:12px; background:linear-gradient(135deg, rgba(56,189,248,0.15), rgba(245,158,11,0.15)); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:600; display:flex; align-items:center; gap:10px;">
+            <span class="item-icon">🖥️</span>
+            <span>展厅大屏首页 ↗</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- Sidebar Footer Hardware Status -->
+      <div class="sidebar-footer">
+        <div class="device-status-badge">
+          <span class="dot-pulse" id="sidebar-dot"></span>
+          <span id="sidebar-status-text">硬件检测中...</span>
+        </div>
+        <div class="device-info-text" id="sidebar-device-info">
+          监听地址: 10.90.169.206:8001
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top App Header -->
+      <header class="top-header">
+        <div>
+          <h1 id="page-title">📱 硬件设备看板</h1>
+          <p id="page-subtitle">实时监控小智 ESP32-S3 连接状态 · MCP 硬件调控 · 毫秒级语音链路</p>
+        </div>
+        <div class="header-badges">
+          <div class="badge badge-success">
+            <span class="dot-pulse" style="width:7px; height:7px;"></span> 端口: 8001
+          </div>
+          <div class="badge badge-model" id="header-model-badge">
+            模型: gemini-3.8-flash
+          </div>
+          <div class="badge badge-role" id="header-role-badge">
+            人设: 智能管家
+          </div>
+          <div class="badge badge-rag" id="header-rag-badge">
+            知识库: 2 篇
+          </div>
+          <a href="/kiosk.html" target="_blank" class="badge" style="background:linear-gradient(135deg, #0284c7, #38bdf8); color:#fff; text-decoration:none; cursor:pointer; font-weight:600; padding:6px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(56,189,248,0.3); border:none;">
+            🖥️ 启动展厅大屏 ↗
+          </a>
+        </div>
+      </header>
+
+      <!-- ================= TAB 1: 📱 设备看板 ================= -->
+      <section id="tab-devices" class="tab-panel active">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-icon">📡</div>
+            <div>
+              <div class="stat-value" id="stat-device-count">0 台</div>
+              <div class="stat-label">当前在线硬件</div>
+            </div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-icon">🌐</div>
+            <div>
+              <div class="stat-value">10.90.169.206:8001</div>
+              <div class="stat-label">局域网服务地址</div>
+            </div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-icon">🎙️</div>
+            <div>
+              <div class="stat-value">SenseVoice-Small</div>
+              <div class="stat-label">本地 INT8 离线识别 (~100ms)</div>
+            </div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-icon">🔊</div>
+            <div>
+              <div class="stat-value">Edge-TTS (24kHz)</div>
+              <div class="stat-label">微软高保真流式推流</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>📱 已连接的小智开发板</h2>
+            <span class="stat-label">心跳探测中 (每2秒更新)</span>
+          </div>
+          <div id="device-list" class="devices-grid">
+            <div class="empty-state">
+              <div class="empty-icon">🔌</div>
+              <p>暂无小智设备在线</p>
+              <span class="empty-hint">请确保 ESP32-S3 连上当前热点 (vivo X200s) 并保持通电</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PC Agent Interactive Action Card -->
+        <div class="card" style="border-left: 4px solid #3b82f6;">
+          <div class="card-header">
+            <h2>🚂 智慧火车园区 · PC Agent 电脑与展厅大屏联动测试</h2>
+            <span class="badge badge-primary">Function Calling 已挂载</span>
+          </div>
+          <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">
+            小智硬件（ESP32）作为展台实体传话筒，PC 网关作为执行手脚。点击下列按钮或对小智说出对应口令，体验电脑控制与大屏全屏联动的震撼效果：
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+            <button class="btn btn-secondary" onclick="quickTestAgent('帮我打开微信')">
+              <span>💬</span> 打开微信软件
+            </button>
+            <button class="btn btn-secondary" onclick="quickTestAgent('我想看蒸汽火车的历史视频')">
+              <span>🚂</span> 展厅大屏全屏播放《蒸汽机车》
+            </button>
+            <button class="btn btn-secondary" onclick="quickTestAgent('播放复兴号高铁科普视频')">
+              <span>🚄</span> 展厅大屏全屏播放《复兴号高铁》
+            </button>
+            <button class="btn btn-secondary" onclick="quickTestAgent('帮我打开浏览器')">
+              <span>🌐</span> 打开网页浏览器
+            </button>
+            <button class="btn btn-secondary" onclick="quickTestAgent('帮我显示桌面')">
+              <span>🖥️</span> 切换显示桌面
+            </button>
+          </div>
+          <div id="pc-agent-feedback" style="display: none; margin-top: 14px; padding: 12px 16px; border-radius: 8px; font-size: 13px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;">
+          </div>
+        </div>
+
+        <div class="card" style="background: #f0f7ff; border-color: #bfdbfe;">
+          <div class="card-header" style="border-color: #e0edfe;">
+            <h2 style="color: #2563eb;">💡 热点与连接指引</h2>
+          </div>
+          <p style="font-size: 13px; color: #475569; line-height: 1.7;">
+            • <strong>预置热点</strong>：WiFi 名称 <code>vivo X200s</code>，密码 <code>lmh200609</code>。<br>
+            • <strong>专属通信链路</strong>：开机自动请求 <code>http://10.90.169.206:8001/ota/</code> 获取 WebSocket 连接，完全绕过官方旧服务器。<br>
+            • <strong>硬件调控</strong>：小智连入后会自动注册 MCP 硬件工具，支持在网页滑块实时调节音量与背光。
+          </p>
+        </div>
+      </section>
+
+      <!-- ================= TAB 2: 🏛️ 知识区管理 (园区中枢) ================= -->
+      <section id="tab-knowledge" class="tab-panel">
+        <!-- Knowledge Zone Top Bar -->
+        <div class="zone-header-card">
+          <div class="zone-selector-box">
+            <span style="font-size:20px;">🏛️</span>
+            <div>
+              <div style="font-size:11px; color:#64748b; font-weight:700;">当前选择的知识区：</div>
+              <select id="zone-select" class="zone-select-dropdown" onchange="handleZoneChange(this.value)">
+                <option value="baicheng_railway">🚂 中国·大安机车博览园知识区 (默认)</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="openAddZoneModal()">+ 新建知识区</button>
+          </div>
+          <div class="zone-stats-pills">
+            <span class="zone-pill green" id="zone-status-pill">🟢 知识区已就绪</span>
+            <span class="zone-pill" id="zone-doc-count-pill">📄 0 篇知识文档</span>
+            <span class="zone-pill" id="zone-vid-count-pill">🎬 0 部展播视频</span>
+          </div>
+        </div>
+
+        <!-- Sub-Navigation for Documents vs Videos -->
+        <div class="zone-subnav-bar">
+          <button class="zone-subnav-btn active" id="btn-subtab-docs" onclick="switchZoneSubTab('docs')">
+            📄 权威文本知识库 (<span id="subtab-doc-count">0</span>)
+          </button>
+          <button class="zone-subnav-btn" id="btn-subtab-videos" onclick="switchZoneSubTab('videos')">
+            🎬 展播视频资产库 (<span id="subtab-vid-count">0</span>)
+          </button>
+        </div>
+
+        <!-- SUB-PANEL 1: 📄 权威文本知识库 -->
+        <div id="subpanel-docs" class="zone-subpanel">
+          <!-- Intelligent Upload Box -->
+          <div class="card" style="border: 2px dashed #bfdbfe; background: #fafdff;">
+            <div class="card-header">
+              <h2>📤 智能知识文档导入 (支持 Word / Markdown / PDF / 文本)</h2>
+              <span class="stat-label">AI 自动结构化梳理 · 提炼高频 FAQ 问答与事实切片</span>
+            </div>
+            
+            <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+              <div class="upload-icon">📂</div>
+              <div class="upload-title">点击选择文件，或直接拖拽文件到这里</div>
+              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf 格式 · 将自动存入当前知识区</div>
+              <div class="upload-tag">✨ 本地永久存储 · 原则上无容量限制 · Gemini 3.8 Flash 知识蒸馏</div>
+              <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf" onchange="handleFileSelected(event)">
+            </div>
+
+            <!-- Upload & Structuring Progress -->
+            <div id="upload-progress" class="upload-progress-box">
+              <div class="spinner"></div>
+              <div>
+                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在使用 AI 梳理知识库...</div>
+                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在由 Gemini 3.8 Flash 提取核心主题、生成标准 FAQ 问答对与事实切片...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Tester -->
+          <div class="search-tester">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h3 style="font-size:14px; font-weight:700; color:#0284c7;">🔍 知识库检索演练场 (Dual-Track BM25 极速测试)</h3>
+              <span style="font-size:12px; color:#0369a1;">无需对板子说话，在此验证用户口语问题能否高分命中</span>
+            </div>
+            <div class="search-input-group">
+              <input type="text" id="rag-query-input" placeholder="输入口语测试问题，如：毛泽东号机车在哪个展厅？" onkeydown="if(event.key==='Enter') testSearchKnowledge()">
+              <button class="btn btn-primary" onclick="testSearchKnowledge()">🔍 检索匹配</button>
+            </div>
+            <div id="search-results-box" style="display:none;"></div>
+          </div>
+
+          <!-- Documents List -->
+          <div class="card">
+            <div class="card-header">
+              <h2>📚 当前知识区文档清单 (<span id="knowledge-total-count">0</span>)</h2>
+              <button class="btn btn-primary btn-sm" onclick="openAddDocModal()">+ 手动快速录入</button>
+            </div>
+            <div id="docs-container" class="docs-list">
+              <div class="empty-state">
+                <div class="empty-icon">📖</div>
+                <p>当前知识区暂无文档，请点击上方拖拽上传 Word 或 Markdown 文档</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-PANEL 2: 🎬 展播视频资产库 -->
+        <div id="subpanel-videos" class="zone-subpanel" style="display: none;">
+          <!-- Video Upload Box -->
+          <div class="card" style="border: 2px dashed #93c5fd; background: #f8fbff;">
+            <div class="card-header">
+              <h2>📤 传入视频至【<span id="video-upload-zone-name">白城火车园区知识区</span>】</h2>
+              <span class="stat-label">直接存入后台视频库 · 自动提取并建立语音口令触发索引</span>
+            </div>
+            
+            <div class="upload-drop-zone" id="video-drop-zone" onclick="document.getElementById('video-file-input').click()">
+              <div class="upload-icon">🎬</div>
+              <div class="upload-title">点击选择视频，或直接拖拽视频文件到这里传入</div>
+              <div class="upload-hint">支持 .mp4、.mkv、.avi、.mov、.wmv、.webm 视频格式</div>
+              <div class="upload-tag">✨ 本地原生全屏超清展映 · 自动建立 AI 语音唤醒口令映射</div>
+              <input type="file" id="video-file-input" style="display:none;" accept=".mp4,.mkv,.avi,.mov,.flv,.wmv,.webm" onchange="handleVideoFileSelected(event)">
+            </div>
+
+            <!-- Video description / transcript input for AI knowledge linking -->
+            <div style="margin-top: 14px; background: #fff; padding: 12px 16px; border-radius: 10px; border: 1px solid #e2e8f0;">
+              <label style="font-size: 13px; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <span>💡 视频内容简短描述 或 视频声音文字稿（选填）：</span>
+                <span style="font-size: 11px; font-weight: normal; color: #64748b;">输入后上传，AI将自动识别分类、提炼口令并蒸馏知识切片！</span>
+              </label>
+              <textarea id="video-upload-transcript" rows="2" class="form-input" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; resize: vertical; padding: 8px 12px; box-sizing: border-box;" placeholder="例如：'这是1961年拍摄的毛泽东号纪录片，讲述抗美援朝战场支前、哈尔滨机务段抢修和英雄乘务组事迹...' 或直接粘贴字幕原声文字"></textarea>
+            </div>
+
+            <!-- Video Upload Progress -->
+            <div id="video-upload-progress" class="upload-progress-box" style="display:none;">
+              <div class="spinner"></div>
+              <div>
+                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="video-upload-status-title">正在上传视频至园区知识区...</div>
+                <div style="font-size:12px; color:var(--text-muted);" id="video-upload-status-detail">正在写入本地视频库并生成口令别名索引...</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Assets List -->
+          <div class="card">
+            <div class="card-header">
+              <h2>🎬 展播视频展项清单 (<span id="videos-total-count">0</span>)</h2>
+              <div style="font-size:12px; color:#64748b;">
+                💡 管理提示：支持点击【▶️ 全屏试播】直接在电脑大屏测试播放效果
+              </div>
+            </div>
+            <div id="videos-container" class="videos-grid">
+              <div class="empty-state">
+                <div class="empty-icon">🎬</div>
+                <p>当前知识区暂无视频，请在上方传入机车展播视频</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 3: 🎭 角色与人设 ================= -->
+      <section id="tab-roles" class="tab-panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>🎭 角色人设与音色切换 (一键无缝生效)</h2>
+            <button class="btn btn-primary btn-sm" onclick="openAddRoleModal()">+ 新建自定义人设</button>
+          </div>
+          <div id="roles-container" class="roles-grid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: 💬 交互仿真与日志 ================= -->
+      <section id="tab-chat" class="tab-panel">
+        <div class="chat-layout">
+          <!-- Left: Web Simulator -->
+          <div class="card" style="margin-bottom:0;">
+            <div class="card-header">
+              <h2>🧪 网页端交互仿真器</h2>
+              <span class="stat-label">直接验证人设与知识库检索</span>
+            </div>
+            <div class="simulator-box">
+              <div class="form-group">
+                <label>选择当前测试人设</label>
+                <select id="sim-role-select"></select>
+              </div>
+              <div id="sim-chat-view" class="simulator-chat-view">
+                <div class="sim-msg-ai">
+                  你好！我是你的小智 AI 语音助手。有什么问题我可以为你解答？
+                </div>
+              </div>
+              <div class="search-input-group">
+                <input type="text" id="sim-input" placeholder="输入对话内容，测试小智如何回答..." onkeydown="if(event.key==='Enter') sendSimulation()">
+                <button class="btn btn-primary" id="btn-sim-send" onclick="sendSimulation()">发送</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Live Conversation Logs -->
+          <div class="card" style="margin-bottom:0;">
+            <div class="card-header">
+              <h2>💬 开发板实时语音交互瀑布流</h2>
+              <button class="btn btn-sm btn-outline" onclick="clearLogs()">清空日志</button>
+            </div>
+            <div id="logs-container" class="logs-container">
+              <div class="empty-state">
+                <div class="empty-icon">🎧</div>
+                <p>等待硬件语音对话触发...</p>
+                <span class="empty-hint">长按开发板 BOOT 键说话，识别结果、知识库引用与大模型回复将在此同步呈现</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 5: ⚙️ 网关系统配置 ================= -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="card" style="max-width: 800px; margin: 0 auto;">
+          <div class="card-header">
+            <h2>⚙️ 大模型中转池与语音引擎配置</h2>
+          </div>
+          <div class="modal-body" style="padding: 0;">
+            <div class="form-group">
+              <label>大模型中转地址 (Relay Base URL)</label>
+              <input type="text" id="cfg-relay-url" placeholder="https://txwgcheshiyum.xyz/v1">
+              <small>指向你部署的 Gemini / OpenAI 格式中转服务地址</small>
+            </div>
+            <div class="form-group">
+              <label>中转站主密钥 (API Key)</label>
+              <input type="text" id="cfg-api-key" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+              <label>模型型号 (Model)</label>
+              <input type="text" id="cfg-model-name" placeholder="gemini-3.8-flash">
+              <small>推荐 Gemini 3.8 Flash，具备低延迟流式响应与强大的中英双语口语理解</small>
+            </div>
+            <div class="form-group">
+              <label>全局默认 TTS 语音音色</label>
+              <select id="cfg-tts-voice">
+                <option value="zh-CN-YunxiNeural">zh-CN-YunxiNeural (云希 - 阳光温暖少年音)</option>
+                <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural (晓晓 - 亲切知性自然女声)</option>
+                <option value="zh-CN-YunjianNeural">zh-CN-YunjianNeural (云健 - 沉稳磁性解说男声)</option>
+                <option value="zh-CN-XiaoyiNeural">zh-CN-XiaoyiNeural (晓伊 - 灵动少女音)</option>
+                <option value="zh-CN-liaoning-XiaobeiNeural">zh-CN-liaoning-XiaobeiNeural (晓北 - 东北方言)</option>
+                <option value="zh-CN-shaanxi-XiaoniNeural">zh-CN-shaanxi-XiaoniNeural (晓妮 - 陕西方言)</option>
+                <option value="en-US-JennyNeural">en-US-JennyNeural (Jenny - 美式英语口语)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>全局备用系统提示词 (System Prompt)</label>
+              <textarea id="cfg-prompt" rows="3"></textarea>
+            </div>
+            <div style="margin-top: 10px;">
+              <button class="btn btn-primary" onclick="saveConfig()">💾 保存全局配置</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Document Details & Chunks View -->
+  <div id="doc-view-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 id="doc-view-title">📖 知识切片与 FAQ 详情</h3>
+        <button class="close-btn" onclick="closeDocViewModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="doc-view-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDocViewModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Manual Knowledge Doc -->
+  <div id="doc-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="doc-modal-title">📖 手动录入知识文档 / FAQ</h3>
+        <button class="close-btn" onclick="closeDocModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>文档分类</label>
+          <input type="text" id="doc-category" placeholder="如：硬件使用、产品FAQ、公司政策">
+        </div>
+        <div class="form-group">
+          <label>文档标题</label>
+          <input type="text" id="doc-title" placeholder="如：小智开发板音量控制指南">
+        </div>
+        <div class="form-group">
+          <label>知识正文 (支持多段落)</label>
+          <textarea id="doc-content" rows="7" placeholder="输入知识内容。系统将自动建立分词与检索索引..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDocModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveKnowledgeDoc()">保存文档</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add / Edit Role -->
+  <div id="role-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="role-modal-title">🎭 新建 / 编辑人设</h3>
+        <button class="close-btn" onclick="closeRoleModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="role-edit-id">
+        <div style="display: flex; gap: 12px;">
+          <div class="form-group" style="width: 80px;">
+            <label>图标</label>
+            <input type="text" id="role-emoji" value="🤖" style="text-align: center; font-size: 20px;">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>人设名称</label>
+            <input type="text" id="role-name" placeholder="如：家庭管家、二次元伴侣">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>人设一句话简介</label>
+          <input type="text" id="role-desc" placeholder="简短描述该角色的特点与场景">
+        </div>
+        <div class="form-group">
+          <label>发音音色 (Edge-TTS)</label>
+          <select id="role-voice">
+            <option value="zh-CN-YunxiNeural">zh-CN-YunxiNeural (云希 - 阳光少年音)</option>
+            <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural (晓晓 - 亲切知性自然女声)</option>
+            <option value="zh-CN-YunjianNeural">zh-CN-YunjianNeural (云健 - 沉稳磁性解说男声)</option>
+            <option value="zh-CN-XiaoyiNeural">zh-CN-XiaoyiNeural (晓伊 - 灵动少女音)</option>
+            <option value="zh-CN-liaoning-XiaobeiNeural">zh-CN-liaoning-XiaobeiNeural (晓北 - 东北方言)</option>
+            <option value="zh-CN-shaanxi-XiaoniNeural">zh-CN-shaanxi-XiaoniNeural (晓妮 - 陕西方言)</option>
+            <option value="en-US-JennyNeural">en-US-JennyNeural (Jenny - 美式英语口语)</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 16px;">
+          <div class="form-group" style="flex: 1;">
+            <label>模型温度 (Temperature: <span id="val-temp">0.7</span>)</label>
+            <input type="range" min="0.1" max="1.0" step="0.05" id="role-temp" value="0.7" oninput="document.getElementById('val-temp').textContent = this.value">
+            <small>数值越低越严谨，越高越生动富有幽默感</small>
+          </div>
+          <div class="form-group" style="width: 150px;">
+            <label>知识库检索开关</label>
+            <select id="role-rag-enabled">
+              <option value="false">⚪ 不启用</option>
+              <option value="true">🟢 启用 RAG</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="role-zone-group">
+          <label>绑定专属知识库 / 知识区 (Zone)</label>
+          <select id="role-zone-id">
+            <option value="">⚪ 随全局当前激活知识区</option>
+          </select>
+          <small>指定专属知识区（如“AI幼教知识库”），实现跨领域知识彻底物理隔离</small>
+        </div>
+        <div class="form-group">
+          <label>系统人设提示词 (System Prompt)</label>
+          <textarea id="role-prompt" rows="5" placeholder="详细设定 AI 语气、身份以及口语化限制..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRoleModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveRoleData()">保存人设</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Knowledge Zone -->
+  <div id="zone-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🏛️ 新建知识区</h3>
+        <button class="close-btn" onclick="closeAddZoneModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 12px;">
+          <div class="form-group" style="width: 80px;">
+            <label>图标</label>
+            <input type="text" id="new-zone-icon" value="🚂" style="text-align: center; font-size: 20px;">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>知识区名称</label>
+            <input type="text" id="new-zone-name" placeholder="如：白城火车园区知识区、高铁科普展区">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>知识区介绍与定位</label>
+          <textarea id="new-zone-desc" rows="3" placeholder="描述此知识区包含的主题内容、机车展项与服务群体..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddZoneModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveNewZone()">创建知识区</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Video Metadata -->
+  <div id="video-edit-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🎬 编辑视频展项口令与信息</h3>
+        <button class="close-btn" onclick="closeVideoEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-video-id">
+        <div class="form-group">
+          <label>展映标题</label>
+          <input type="text" id="edit-video-title">
+        </div>
+        <div class="form-group">
+          <label>所属展区 / 展厅类别</label>
+          <input type="text" id="edit-video-category" placeholder="如：1号机车历史展厅、3号高铁未来馆">
+        </div>
+        <div class="form-group">
+          <label>语音唤醒口令别名 (用逗号分隔多个触发词)</label>
+          <input type="text" id="edit-video-aliases" placeholder="如：毛泽东号, 英雄机车, 解放304, 老火车">
+          <small>当游客对小智说出这些关键词时，将自动全屏播放此视频</small>
+        </div>
+        <div class="form-group">
+          <label>展项解说与视频故事</label>
+          <textarea id="edit-video-desc" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeVideoEditModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveVideoEdit()">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: AI Video Knowledge Linker -->
+  <div id="video-ai-link-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>🤖 AI 智能识别与知识库联动</h3>
+        <button class="close-btn" onclick="closeAiLinkModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ai-link-video-id">
+        <div style="font-size: 13px; color: #475569; margin-bottom: 12px; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <strong>当前视频：</strong> <span id="ai-link-video-title" style="color: #1e3a8a; font-weight: 700;">-</span>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight: 700; color: #0f172a; margin-bottom: 6px; display: block;">
+            📝 视频内容简述 或 视频原声文字/字幕文本：
+          </label>
+          <textarea id="ai-link-text-input" rows="7" placeholder="可以简短输入几句话介绍（如：讲了什么机车、哪一年的事、关键人物与功勋），也可以直接将整段视频字幕或录音识别文字粘贴在这里。&#10;&#10;AI 将自动：&#10;1. 识别视频所属主题类型并生成标准展映标题&#10;2. 提炼 15~20 个自然口语语音触发词&#10;3. 蒸馏标准 FAQ 问答对与事实切片直接存入知识区并双向绑定！" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; padding: 10px; line-height: 1.5; box-sizing: border-box; resize: vertical;"></textarea>
+        </div>
+
+        <!-- AI Result Box -->
+        <div id="ai-link-result-box" style="display: none; margin-top: 14px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 14px;">
+          <div style="font-size: 14px; font-weight: 700; color: #166534; margin-bottom: 8px;">
+            🎉 AI 识别与联动完成！
+          </div>
+          <div id="ai-link-result-content" style="font-size: 13px; color: #1e293b; line-height: 1.6;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAiLinkModal()">关闭</button>
+        <button class="btn btn-primary" id="btn-submit-ai-link" onclick="submitAiLink()">
+          ✨ 开始 AI 智能解析与知识库联动
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=2.3.0"></script>
+</body>
+</html>

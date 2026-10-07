@@ -1,0 +1,25 @@
+# --- 核心 Web 与网络服务 ---
+fastapi>=0.115.0
+uvicorn>=0.34.0
+websockets>=12.0
+httpx>=0.28.0
+pydantic>=2.10.0
+
+# --- 语音合成 (TTS) 与音频编解码 ---
+edge-tts>=7.0.0
+miniaudio>=1.71
+pyogg>=0.6.14
+numpy>=1.26.0
+
+# --- 离线语音识别 (ASR) ---
+sherpa-onnx>=1.10.0
+
+# --- 知识库与 RAG 检索 ---
+fastembed>=0.3.0
+jieba>=0.42.1
+python-docx>=1.1.0
+
+# --- 小智硬件 ESP32 串口检测与固件配置刷写 ---
+pyserial>=3.5
+esptool>=4.8.0
+esp-idf-nvs-partition-gen>=0.3.0

@@ -1,0 +1,61 @@
+# ========================================================
+# Git Ignore for Xiaozhi AI Gateway & Hardware Workspace
+# ========================================================
+
+# --- Python 运行与构建缓存 ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- 敏感凭证与本地硬件配置 (防止外泄私钥与密码) ---
+gateway/config.json
+nvs_config.csv
+nvs_custom.bin
+
+# --- 超大二进制与模型文件 (可通过 gateway/scripts/download_models.py 自动拉取) ---
+models/
+
+# 本地内置视频播放器 (121MB，GitHub 会直接拒绝 Push)
+gateway/bin/mpv.exe
+gateway/bin/mpv/
+
+# 展厅大视频文件 (110MB，请通过网盘或单独文件传输)
+gateway/data/videos/*.mp4
+gateway/data/videos/*.mkv
+gateway/data/videos/*.mov
+gateway/data/videos/*.avi
+
+# 固件完整镜像备份 (16MB，如需备份可单独存储)
+backup_xiaozhi_16MB.bin
+
+# --- 本地数据库与临时运行数据 ---
+gateway/data/*.db-shm
+gateway/data/*.db-wal
+*.log
+create_lnk_final.ps1
+
+# --- IDE 与系统文件 ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

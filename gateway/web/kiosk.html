@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中国·大安机车博览园 - 智慧AI数字导览系统</title>
+  <style>
+    :root {
+      --navy-deep: #061124;
+      --navy-card: rgba(8, 22, 48, 0.82);
+      --navy-card-hover: rgba(14, 34, 72, 0.92);
+      --neon-cyan: #00e5ff;
+      --neon-blue: #0284c7;
+      --sky-blue: #38bdf8;
+      --china-red: #ef4444;
+      --accent-gold: #f59e0b;
+      --text-white: #ffffff;
+      --text-dim: #94a3b8;
+      --border-cyan-glow: rgba(0, 229, 255, 0.35);
+      --border-blue: rgba(56, 189, 248, 0.25);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--navy-deep);
+      color: var(--text-white);
+    }
+
+    /* ======================================================== */
+    /* SCENIC BACKGROUND (图二真实拱门机车照片 - 明亮通透处理)     */
+    /* ======================================================== */
+    .scenic-bg-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      background-image: 
+        linear-gradient(180deg, rgba(6, 17, 36, 0.45) 0%, rgba(6, 17, 36, 0.12) 35%, rgba(4, 12, 26, 0.58) 100%),
+        url('/assets/daan_bg.png');
+      background-size: cover;
+      background-position: center 36%;
+      background-repeat: no-repeat;
+      filter: brightness(1.15) contrast(1.06);
+      pointer-events: none;
+    }
+
+    /* Ambient Blueprint Scan Grid */
+    .bg-grid-scrim {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+
+    /* Master Container */
+    .kiosk-app-frame {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18px 32px 20px 32px;
+    }
+
+    /* ======================================================== */
+    /* 1. TOP HEADER BAR (对标参考图一顶部)                       */
+    /* ======================================================== */
+    header.kiosk-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding-bottom: 8px;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-winged-crest {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #0284c7, #00e5ff);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .brand-title-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title-cn {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .brand-title-en {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sky-blue);
+      letter-spacing: 1.8px;
+      margin-top: 1px;
+    }
+
+    .header-right-status {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 15px;
+      color: #e2e8f0;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-clock {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+    }
+
+    .weather-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .weather-temp {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .weather-desc {
+      font-size: 12px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .btn-fs-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-fs-toggle:hover {
+      background: rgba(0, 229, 255, 0.2);
+      border-color: var(--neon-cyan);
+    }
+
+    /* ======================================================== */
+    /* 2. CENTER HERO STAGE (左侧欢迎+对话框，右侧公告+园区概览)    */
+    /* ======================================================== */
+    .kiosk-hero-area {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.35fr 0.95fr;
+      gap: 24px;
+      margin: 10px 0 16px 0;
+      min-height: 0;
+    }
+
+    /* LEFT: Greeting Title + Real-time Subtitle/Dialogue Stage */
+    .hero-left-section {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 0;
+    }
+
+    .hero-greeting-block {
+      margin-bottom: 12px;
+    }
+
+    .greeting-h1 {
+      font-size: 40px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      letter-spacing: 1px;
+      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    }
+
+    .greeting-h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    }
+
+    .greeting-sub {
+      font-size: 14px;
+      color: var(--sky-blue);
+      margin-top: 8px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .greeting-underline {
+      width: 48px;
+      height: 3px;
+      background: var(--neon-cyan);
+      border-radius: 2px;
+      margin-top: 6px;
+      box-shadow: 0 0 10px var(--neon-cyan);
+    }
+
+    /* Dialogue Card (保留对话框界面 - 玻璃拟态广播台) */
+    .dialogue-viewport-card {
+      flex: 1;
+      background: var(--navy-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-cyan-glow);
+      border-radius: 16px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Visitor Voice Prompt Inquiry */
+    .visitor-inquiry-bar {
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-left: 4px solid var(--neon-cyan);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .inquiry-tag {
+      font-size: 11px;
+      font-weight: 800;
+      color: #050f24;
+      background: var(--neon-cyan);
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .inquiry-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* Xiaotie Spoken Subtitle Main Body */
+    .xiaotie-commentary-body {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 0;
+    }
+
+    .xiaotie-commentary-body::-webkit-scrollbar {
+      width: 4px;
+    }
+    .xiaotie-commentary-body::-webkit-scrollbar-thumb {
+      background: rgba(0, 229, 255, 0.3);
+      border-radius: 4px;
+    }
+
+    .commentary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .commentary-guide-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-gold);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .commentary-tags-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .commentary-badge {
+      font-size: 11px;
+      color: #bae6fd;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .commentary-spoken-text {
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1.7;
+      color: #f1f5f9;
+      letter-spacing: 0.4px;
+      text-align: justify;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .typewriter-cursor {
+      display: inline-block;
+      width: 3px;
+      height: 18px;
+      background: var(--neon-cyan);
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: blink 0.8s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* RIGHT: 园区公告 + 园区概览 (参考图一右侧双卡片) */
+    .hero-right-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    /* 园区公告 Card */
+    .hero-card-widget {
+      background: var(--navy-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-cyan-glow);
+      border-radius: 16px;
+      padding: 18px 22px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .widget-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+    }
+
+    .widget-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .widget-title .title-icon {
+      color: var(--neon-cyan);
+      font-size: 16px;
+    }
+
+    .widget-more {
+      font-size: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+
+    .bullet-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .bullet-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .bullet-item:hover {
+      color: var(--neon-cyan);
+    }
+
+    .bullet-date {
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    /* 园区概览 Metrics Card (2x2 Grid) */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .overview-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .overview-icon {
+      font-size: 22px;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--neon-cyan);
+    }
+
+    .overview-text-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .overview-label {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .overview-val {
+      font-size: 17px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-top: 2px;
+    }
+
+    .overview-val span {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--sky-blue);
+      margin-left: 3px;
+    }
+
+    /* ======================================================== */
+    /* 3. BOTTOM 6 ACTION CARDS (对标参考图一下方6个圆角大卡片)     */
+    /* ======================================================== */
+    .kiosk-action-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .action-card {
+      background: var(--navy-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-cyan-glow);
+      border-radius: 14px;
+      padding: 16px 10px 12px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .action-card:hover {
+      background: var(--navy-card-hover);
+      border-color: var(--neon-cyan);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 28px rgba(0, 229, 255, 0.25);
+    }
+
+    .action-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .action-card:hover::before {
+      opacity: 1;
+    }
+
+    .action-icon-disc {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+    }
+
+    .action-title-cn {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    .action-title-en {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--sky-blue);
+      letter-spacing: 1px;
+      margin-top: 3px;
+    }
+
+    .action-arrow-circle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 10px;
+      transition: all 0.2s;
+    }
+
+    .action-card:hover .action-arrow-circle {
+      background: var(--neon-cyan);
+      border-color: var(--neon-cyan);
+      color: #000000;
+      box-shadow: 0 0 8px var(--neon-cyan);
+    }
+
+    /* ======================================================== */
+    /* 4. BOTTOM VOICE / MIC PILL BAR (对标参考图一最底部提示条)   */
+    /* ======================================================== */
+    .kiosk-voice-pill-bar {
+      background: rgba(8, 20, 42, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-cyan-glow);
+      border-radius: 30px;
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .voice-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex: 1;
+    }
+
+    .robot-avatar-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7, #00e5ff);
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+    }
+
+    .voice-prompt-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .voice-prompt-sample {
+      color: var(--neon-cyan);
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .voice-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Audio Equalizer Waves */
+    .soundwave-visualizer {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+    }
+
+    .soundwave-bar {
+      width: 3px;
+      background: var(--neon-cyan);
+      border-radius: 2px;
+      animation: sound-bounce 1.2s infinite ease-in-out;
+    }
+    .soundwave-bar:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+    .soundwave-bar:nth-child(2) { height: 14px; animation-delay: 0.3s; }
+    .soundwave-bar:nth-child(3) { height: 20px; animation-delay: 0.2s; }
+    .soundwave-bar:nth-child(4) { height: 12px; animation-delay: 0.4s; }
+    .soundwave-bar:nth-child(5) { height: 16px; animation-delay: 0.15s; }
+    .soundwave-bar:nth-child(6) { height: 8px; animation-delay: 0.35s; }
+
+    @keyframes sound-bounce {
+      0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+      50% { transform: scaleY(1.2); opacity: 1; }
+    }
+
+    .btn-quick-close-video {
+      padding: 5px 14px;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      border-radius: 20px;
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-quick-close-video:hover {
+      background: rgba(239, 68, 68, 0.4);
+      color: #fff;
+    }
+
+    /* ======================================================== */
+    /* 5. CINEMATIC VIDEO OVERLAY (全屏覆盖播放层 - 纯净无黑屏) */
+    /* ======================================================== */
+    .video-overlay-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 99999;
+      background: #000000;
+      display: none;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      user-select: none;
+    }
+
+    .video-overlay-layer.active {
+      display: flex !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .video-overlay-layer.autohide {
+      cursor: none;
+    }
+
+    .video-overlay-layer.autohide .overlay-hud-top {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-12px);
+    }
+
+    .video-overlay-layer.autohide .overlay-controls-bottom {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px);
+    }
+
+    .video-overlay-layer.autohide .video-unmute-banner {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-hud-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 18px 32px;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+      transition: all 0.3s ease;
+    }
+
+    .overlay-title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .overlay-tag {
+      font-size: 12px;
+      font-weight: 800;
+      color: #000000;
+      background: var(--neon-cyan);
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .overlay-video-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    .overlay-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .overlay-badge-hd {
+      font-size: 13px;
+      color: #38bdf8;
+      background: rgba(2, 132, 199, 0.25);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 5px 14px;
+      border-radius: 20px;
+    }
+
+    .btn-close-overlay {
+      padding: 8px 20px;
+      background: rgba(239, 68, 68, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 20px;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-overlay:hover {
+      background: #dc2626;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.6);
+    }
+
+    .overlay-video-wrapper {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    #cinema-video-player {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000000;
+    }
+
+    /* Floating Unmute Banner */
+    .video-unmute-banner {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(11, 26, 54, 0.95);
+      border: 1px solid var(--neon-cyan);
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
+      color: #ffffff;
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 25;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+      animation: pulse-border 2s infinite;
+      transition: all 0.3s ease;
+    }
+
+    .video-unmute-banner.show {
+      display: flex;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 15px rgba(0, 229, 255, 0.3); }
+      50% { box-shadow: 0 0 30px rgba(0, 229, 255, 0.7); }
+    }
+
+    /* Centered Buffering Spinner */
+    .video-buffering-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    .video-buffering-spinner.show {
+      display: flex;
+    }
+
+    .spinner-ring {
+      width: 52px;
+      height: 52px;
+      border: 4px solid rgba(0, 229, 255, 0.2);
+      border-top-color: var(--neon-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner-text {
+      color: #e2e8f0;
+      font-size: 14px;
+      font-weight: 600;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+      letter-spacing: 0.5px;
+    }
+
+    /* Centered Action Button */
+    .video-center-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: rgba(11, 26, 54, 0.8);
+      border: 2px solid var(--neon-cyan);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      color: #ffffff;
+      cursor: pointer;
+      z-index: 16;
+      transition: all 0.2s ease;
+    }
+
+    .video-center-btn:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      background: rgba(0, 229, 255, 0.25);
+      box-shadow: 0 0 40px rgba(0, 229, 255, 0.7);
+    }
+
+    .video-center-btn.show {
+      display: flex;
+    }
+
+    /* Flash Icon when Click to Toggle Play/Pause */
+    .video-flash-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.5);
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 18;
+      transition: all 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+
+    .video-flash-icon.flash {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.15);
+    }
+
+    /* Bottom Transport Control Bar */
+    .overlay-controls-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 24px 32px 20px 32px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 65%, transparent 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 20;
+      transition: all 0.3s ease;
+    }
+
+    .video-progress-wrap {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      transition: height 0.15s ease;
+    }
+
+    .video-progress-wrap:hover {
+      height: 10px;
+    }
+
+    .video-progress-buffered {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: 4px;
+      width: 0%;
+      pointer-events: none;
+    }
+
+    .video-progress-played {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #00e5ff, #38bdf8);
+      border-radius: 4px;
+      width: 0%;
+      pointer-events: none;
+    }
+
+    .video-progress-thumb {
+      position: absolute;
+      top: 50%;
+      left: 0%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border: 2px solid var(--neon-cyan);
+      box-shadow: 0 0 10px #00e5ff;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .video-progress-wrap:hover .video-progress-thumb {
+      opacity: 1;
+    }
+
+    .video-controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .video-ctrl-left, .video-ctrl-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .ctrl-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--neon-cyan);
+    }
+
+    .video-time-text {
+      font-size: 13px;
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+      margin-left: 4px;
+    }
+
+    .video-volume-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .volume-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 75px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--neon-cyan);
+      cursor: pointer;
+      box-shadow: 0 0 6px var(--neon-cyan);
+    }
+
+    .btn-exit-cinema {
+      padding: 6px 14px;
+      background: rgba(239, 68, 68, 0.25);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      border-radius: 16px;
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-exit-cinema:hover {
+      background: rgba(239, 68, 68, 0.8);
+      color: #fff;
+    }
+
+    /* Modal Drawer for Video Selection */
+    .video-drawer-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 12, 26, 0.85);
+      backdrop-filter: blur(16px);
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+    }
+
+    .video-drawer-modal.open {
+      display: flex;
+    }
+
+    .drawer-card {
+      width: 800px;
+      max-width: 90%;
+      background: #0b1a36;
+      border: 1px solid var(--border-cyan-glow);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 12px;
+    }
+
+    .drawer-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .drawer-close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .drawer-video-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <!-- Scenic Photo Canvas (图二拱门原图 + 深度玻璃暗调) -->
+  <div class="scenic-bg-container">
+    <div class="bg-grid-scrim"></div>
+  </div>
+
+  <div class="kiosk-app-frame">
+    <!-- ======================================================== -->
+    <!-- 1. TOP HEADER BAR                                        -->
+    <!-- ======================================================== */ -->
+    <header class="kiosk-top-bar">
+      <div class="brand-section">
+        <div class="brand-winged-crest">🚂</div>
+        <div class="brand-title-box">
+          <div class="brand-title-cn">中国·大安机车博览园</div>
+          <div class="brand-title-en">DAAN LOCOMOTIVE EXPO PARK, CHINA</div>
+        </div>
+      </div>
+
+      <div class="header-right-status">
+        <div class="status-item" id="device-pill">
+          <span style="color:#00e5ff;">📶</span>
+          <span id="device-indicator">音箱在线</span>
+        </div>
+        <div class="status-item">
+          <span class="status-clock" id="kiosk-clock">10:30</span>
+        </div>
+        <div class="status-item weather-box">
+          <span>☀️</span>
+          <span class="weather-temp">18°C</span>
+          <span class="weather-desc">晴/优</span>
+        </div>
+        <button class="btn-fs-toggle" onclick="toggleFullScreen()">
+          <span>⛶</span>
+          <span>全屏</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ======================================================== -->
+    <!-- 2. CENTER HERO AREA (左侧欢迎+对话框，右侧公告+园区概览)    -->
+    <!-- ======================================================== */ -->
+    <main class="kiosk-hero-area">
+      <!-- HERO LEFT: Greeting + Dialogue Box Viewport -->
+      <section class="hero-left-section">
+        <div class="hero-greeting-block">
+          <h1 class="greeting-h1">您好！</h1>
+          <h2 class="greeting-h2">我是您的智能导览机器人</h2>
+          <div class="greeting-sub">
+            <span>很高兴为您服务 · 伴游国家级工业文化遗产</span>
+          </div>
+          <div class="greeting-underline"></div>
+        </div>
+
+        <!-- Dialogue Viewport Card (保留对话框界面) -->
+        <div class="dialogue-viewport-card">
+          <!-- Visitor Voice Prompt Inquiry -->
+          <div class="visitor-inquiry-bar">
+            <span class="inquiry-tag">现场游客提问</span>
+            <span class="inquiry-text" id="visitor-question-text">您好！请问大安机车博览园有哪些核心展区和功勋机车？</span>
+          </div>
+
+          <!-- Xiaotie Live Commentary Subtitle -->
+          <div class="xiaotie-commentary-body">
+            <div>
+              <div class="commentary-header">
+                <div class="commentary-guide-name">
+                  <span>🎙️ 导览员小铁 · 现场实时解说</span>
+                </div>
+                <div class="commentary-tags-row" id="commentary-meta-tags">
+                  <span class="commentary-badge">核心展区：三场两馆一线一平台</span>
+                  <span class="commentary-badge">76台蒸汽机车群</span>
+                </div>
+              </div>
+
+              <!-- Commentary Spoken Content -->
+              <div class="commentary-spoken-text" id="commentary-content-text">欢迎来到吉林白城“中国·大安机车博览园”！我是您的专属智慧导览员小铁。这里拥有封存展示76台壮观蒸汽机车的钢铁巨龙广场，以及珍贵的毛泽东号与朱德号英雄双子星传奇档案。无论您是对蒸汽机车历史好奇，还是想在大屏观看珍贵影像纪录，随时对我说话就可以哦！<span class="typewriter-cursor"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HERO RIGHT: 园区公告 + 园区概览 (参考图一右侧双卡片) -->
+      <section class="hero-right-section">
+        <!-- 园区公告 Widget -->
+        <div class="hero-card-widget">
+          <div class="widget-header-row">
+            <div class="widget-title">
+              <span class="title-icon">📢</span>
+              <span>园区公告</span>
+            </div>
+            <span class="widget-more" onclick="sendPrompt('大安机车博览园最近有什么文化活动？')">更多 ❯</span>
+          </div>
+          <div class="bullet-list">
+            <div class="bullet-item" onclick="sendPrompt('介绍一下2024大安机车文化节')">
+              <span>• 2024大安机车文化季将于5月18日盛大开幕</span>
+              <span class="bullet-date">05-18</span>
+            </div>
+            <div class="bullet-item" onclick="sendPrompt('蒸汽机车记忆馆新展厅开放情况')">
+              <span>• 蒸汽机车记忆馆·功勋机车新展厅即日起开放</span>
+              <span class="bullet-date">05-12</span>
+            </div>
+            <div class="bullet-item" onclick="sendPrompt('介绍一下机车检修高空观景天桥')">
+              <span>• 76台蒸汽机车陈列广场高空观景天桥落成</span>
+              <span class="bullet-date">05-08</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 园区概览 Metrics Widget (2x2 Grid) -->
+        <div class="hero-card-widget">
+          <div class="widget-header-row">
+            <div class="widget-title">
+              <span class="title-icon">📊</span>
+              <span>园区概览</span>
+            </div>
+            <span class="widget-more" onclick="sendPrompt('详细介绍一下大安机车博览园的基本概况')">详情 ❯</span>
+          </div>
+          <div class="overview-grid">
+            <div class="overview-item" onclick="sendPrompt('大安机车博览园占地面积和布局结构')">
+              <div class="overview-icon">📐</div>
+              <div class="overview-text-block">
+                <span class="overview-label">占地面积</span>
+                <span class="overview-val">2000<span>亩</span></span>
+              </div>
+            </div>
+
+            <div class="overview-item" onclick="sendPrompt('76台蒸汽机车群的吉尼斯世界纪录')">
+              <div class="overview-icon">🚂</div>
+              <div class="overview-text-block">
+                <span class="overview-label">蒸汽机车群</span>
+                <span class="overview-val">76<span>台(全球之最)</span></span>
+              </div>
+            </div>
+
+            <div class="overview-item" onclick="sendPrompt('介绍一下毛泽东号和朱德号')">
+              <div class="overview-icon">⭐</div>
+              <div class="overview-text-block">
+                <span class="overview-label">红色功勋机车</span>
+                <span class="overview-val">毛号<span>/ 朱号</span></span>
+              </div>
+            </div>
+
+            <div class="overview-item" onclick="sendPrompt('大安博览园每年来多少游客？')">
+              <div class="overview-icon">👥</div>
+              <div class="overview-text-block">
+                <span class="overview-label">年接待游客</span>
+                <span class="overview-val">80+<span>万人次</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ======================================================== -->
+    <!-- 3. BOTTOM 6 ACTION CARDS (对标参考图一排版)                -->
+    <!-- ======================================================== */ -->
+    <nav class="kiosk-action-row">
+      <!-- 1. 园区导览 -->
+      <div class="action-card" onclick="sendPrompt('请为我全景导览大安机车博览园核心布局')">
+        <div class="action-icon-disc">📍</div>
+        <div class="action-title-cn">园区导览</div>
+        <div class="action-title-en">PARK GUIDE</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+
+      <!-- 2. 景点介绍 -->
+      <div class="action-card" onclick="sendPrompt('大安机车博览园有哪些经典展馆和景点？')">
+        <div class="action-icon-disc">🏛️</div>
+        <div class="action-title-cn">景点介绍</div>
+        <div class="action-title-en">ATTRACTIONS</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+
+      <!-- 3. 功勋机车 -->
+      <div class="action-card" onclick="sendPrompt('给我讲讲毛泽东号与朱德号英雄双子星的传奇历史')">
+        <div class="action-icon-disc">⭐</div>
+        <div class="action-title-cn">功勋机车</div>
+        <div class="action-title-en">HERO TRAINS</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+
+      <!-- 4. 视听展映 -->
+      <div class="action-card" onclick="openVideoDrawer()">
+        <div class="action-icon-disc">🎬</div>
+        <div class="action-title-cn">视听展映</div>
+        <div class="action-title-en">CINEMA VIDEO</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+
+      <!-- 5. 游园服务 -->
+      <div class="action-card" onclick="sendPrompt('园区有哪些文创、餐饮与游园服务设施？')">
+        <div class="action-icon-disc">🍴</div>
+        <div class="action-title-cn">游园服务</div>
+        <div class="action-title-en">VISITOR SERVICE</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+
+      <!-- 6. 联系导览 -->
+      <div class="action-card" onclick="sendPrompt('小铁，你在吗？能陪我一起参观博览园吗？')">
+        <div class="action-icon-disc">🎧</div>
+        <div class="action-title-cn">联系导览</div>
+        <div class="action-title-en">VOICE GUIDE</div>
+        <div class="action-arrow-circle">❯</div>
+      </div>
+    </nav>
+
+    <!-- ======================================================== -->
+    <!-- 4. BOTTOM VOICE / MIC PILL BAR (对标参考图一最底栏)         -->
+    <!-- ======================================================== */ -->
+    <footer class="kiosk-voice-pill-bar">
+      <div class="voice-bar-left">
+        <div class="robot-avatar-circle">🤖</div>
+        <div class="voice-prompt-text">
+          <span>您可以对我说：</span>
+          <span class="voice-prompt-sample" onclick="sendPrompt('播放大安机车博览园vlog')">“播放大安机车博览园vlog”</span>
+          <span>或</span>
+          <span class="voice-prompt-sample" onclick="sendPrompt('播放毛泽东号视频')">“播放毛泽东号视频”</span>
+          <span>/</span>
+          <span class="voice-prompt-sample" onclick="sendPrompt('带我参观机车记忆馆')">“带我参观机车记忆馆”</span>
+        </div>
+      </div>
+
+      <div class="voice-bar-right">
+        <!-- Audio Equalizer Waves -->
+        <div class="soundwave-visualizer">
+          <div class="soundwave-bar"></div>
+          <div class="soundwave-bar"></div>
+          <div class="soundwave-bar"></div>
+          <div class="soundwave-bar"></div>
+          <div class="soundwave-bar"></div>
+          <div class="soundwave-bar"></div>
+        </div>
+
+        <button class="btn-quick-close-video" onclick="closeVideoOverlay()">
+          <span>✖</span>
+          <span>关闭视频 (ESC)</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- CINEMATIC VIDEO OVERLAY (全屏覆盖播放层 - 纯净无黑屏)   -->
+  <!-- ======================================================= -->
+  <div class="video-overlay-layer" id="kiosk-video-overlay">
+    <!-- Top HUD -->
+    <div class="overlay-hud-top" id="overlay-hud-top">
+      <div class="overlay-title-group">
+        <div class="overlay-tag">展厅大屏展映</div>
+        <div class="overlay-video-title" id="overlay-title-text">中国·大安机车博览园 专题短片</div>
+      </div>
+      <div class="overlay-controls">
+        <div class="overlay-badge-hd">4K / 1080P 超清全屏 · 展厅声场</div>
+        <button class="btn-close-overlay" onclick="closeVideoOverlay()">
+          <span>✖</span>
+          <span>关闭展映 (ESC / 语音说"关闭视频")</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Floating Unmute Banner (Auto-pops if browser blocks unmuted sound) -->
+    <div class="video-unmute-banner" id="video-unmute-banner" onclick="unmuteVideo()">
+      <span>🔊</span>
+      <span>当前已静音播放，点击画面开启展厅原声</span>
+    </div>
+
+    <!-- Video Canvas -->
+    <div class="overlay-video-wrapper" id="overlay-video-wrapper" onclick="handleVideoWrapperClick(event)">
+      <video id="cinema-video-player" playsinline webkit-playsinline preload="auto"></video>
+
+      <!-- Centered Buffering Spinner -->
+      <div class="video-buffering-spinner" id="video-buffering-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-text">正在加载片源中...</div>
+      </div>
+
+      <!-- Center Big Action Button (Play / Resume / Unmute) -->
+      <div class="video-center-btn" id="video-center-btn" onclick="handleCenterBtnClick(event)">
+        ▶
+      </div>
+
+      <!-- Center Flash Icon on Click -->
+      <div class="video-flash-icon" id="video-flash-icon">▶</div>
+    </div>
+
+    <!-- Bottom Transport Controls Bar -->
+    <div class="overlay-controls-bottom" id="overlay-controls-bottom">
+      <!-- Scrubber Timeline -->
+      <div class="video-progress-wrap" id="video-progress-wrap" onclick="seekVideoProgress(event)">
+        <div class="video-progress-buffered" id="video-progress-buffered"></div>
+        <div class="video-progress-played" id="video-progress-played"></div>
+        <div class="video-progress-thumb" id="video-progress-thumb"></div>
+      </div>
+
+      <!-- Controls Row -->
+      <div class="video-controls-row">
+        <div class="video-ctrl-left">
+          <button class="ctrl-btn" id="btn-play-pause" onclick="togglePlayPause()" title="播放/暂停 (Space)">▶</button>
+          <button class="ctrl-btn" onclick="skipVideo(-10)" title="后退10秒 (←)">⏪</button>
+          <button class="ctrl-btn" onclick="skipVideo(10)" title="前进10秒 (→)">⏩</button>
+          <span class="video-time-text" id="video-time-text">00:00 / 00:00</span>
+        </div>
+
+        <div class="video-ctrl-right">
+          <div class="video-volume-wrap">
+            <button class="ctrl-btn" id="btn-volume-icon" onclick="toggleMute()" title="静音/恢复 (M)">🔊</button>
+            <input type="range" class="volume-slider" id="video-volume-slider" min="0" max="1" step="0.05" value="1" oninput="changeVideoVolume(this.value)">
+          </div>
+          <button class="ctrl-btn" onclick="toggleFullScreen()" title="全屏切换 (F)">⛶</button>
+          <button class="btn-exit-cinema" onclick="closeVideoOverlay()">
+            <span>✖</span>
+            <span>返回大屏首页</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Selection Modal Drawer -->
+  <div class="video-drawer-modal" id="video-drawer-modal" onclick="closeVideoDrawer(event)">
+    <div class="drawer-card" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <div class="drawer-title">🎬 展厅精选大屏视听展映库</div>
+        <button class="drawer-close-btn" onclick="closeVideoDrawer()">✕</button>
+      </div>
+      <div class="drawer-video-list" id="drawer-video-list">
+        <!-- Dynamically injected -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    let kioskWs = null;
+
+    // Clock updater
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('kiosk-clock').textContent = `${h}:${m}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Toggle True Fullscreen
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // Video Selection Drawer
+    async function openVideoDrawer() {
+      const modal = document.getElementById('video-drawer-modal');
+      const listEl = document.getElementById('drawer-video-list');
+      modal.classList.add('open');
+
+      try {
+        const res = await fetch('/api/videos');
+        if (!res.ok) return;
+        const data = await res.json();
+        const allVideos = data.videos || [];
+        listEl.innerHTML = '';
+
+        if (allVideos.length === 0) {
+          listEl.innerHTML = '<div style="color:#94a3b8; padding:20px; text-align:center;">暂无已导入的展映视频</div>';
+          return;
+        }
+
+        allVideos.forEach(v => {
+          const item = document.createElement('div');
+          item.style.cssText = `
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            border-radius: 10px;
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+          `;
+          item.onmouseover = () => { item.style.background = 'rgba(0, 229, 255, 0.12)'; item.style.borderColor = '#00e5ff'; };
+          item.onmouseout = () => { item.style.background = 'rgba(255, 255, 255, 0.05)'; item.style.borderColor = 'rgba(0, 229, 255, 0.2)'; };
+
+          item.onclick = () => {
+            closeVideoDrawer();
+            triggerPlayVideo(v.video_id, v.title);
+          };
+
+          item.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="font-size:16px; font-weight:700; color:#fff;">${escapeHtml(v.title || v.file_name)}</div>
+              <div style="font-size:12px; color:#94a3b8;">${escapeHtml(v.description || '中国·大安机车博览园专属科普短片')}</div>
+            </div>
+            <button style="padding:6px 14px; background:#0284c7; border:none; border-radius:6px; color:#fff; font-weight:700; cursor:pointer;">
+              ▶ 立即全屏展映
+            </button>
+          `;
+          listEl.appendChild(item);
+        });
+      } catch (e) {
+        console.error("openVideoDrawer error:", e);
+      }
+    }
+
+    function closeVideoDrawer(e) {
+      document.getElementById('video-drawer-modal').classList.remove('open');
+    }
+
+    // Video Player & Cinema Overlay State
+    let activeVideoId = null;
+    let isOverlayPlaying = false;
+    let autoHideTimer = null;
+
+    // Helper: format seconds to MM:SS
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds) || seconds < 0) return "00:00";
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // UI helpers for video overlay
+    function showBufferingSpinner(show) {
+      const el = document.getElementById('video-buffering-spinner');
+      if (el) el.classList.toggle('show', !!show);
+    }
+
+    function showUnmuteBanner() {
+      const el = document.getElementById('video-unmute-banner');
+      if (el) el.classList.add('show');
+    }
+
+    function hideUnmuteBanner() {
+      const el = document.getElementById('video-unmute-banner');
+      if (el) el.classList.remove('show');
+    }
+
+    function showCenterBtn(iconText) {
+      const el = document.getElementById('video-center-btn');
+      if (el) {
+        el.textContent = iconText || '▶';
+        el.classList.add('show');
+      }
+    }
+
+    function hideCenterBtn() {
+      const el = document.getElementById('video-center-btn');
+      if (el) el.classList.remove('show');
+    }
+
+    function updatePlayPauseBtn(isPlaying) {
+      const btn = document.getElementById('btn-play-pause');
+      if (btn) btn.textContent = isPlaying ? '⏸' : '▶';
+    }
+
+    function flashCenterIcon(iconText) {
+      const el = document.getElementById('video-flash-icon');
+      if (!el) return;
+      el.textContent = iconText;
+      el.classList.remove('flash');
+      void el.offsetWidth; // Trigger reflow
+      el.classList.add('flash');
+      setTimeout(() => {
+        el.classList.remove('flash');
+      }, 500);
+    }
+
+    function updateVolumeUI() {
+      const player = document.getElementById('cinema-video-player');
+      const iconBtn = document.getElementById('btn-volume-icon');
+      const slider = document.getElementById('video-volume-slider');
+      if (!player) return;
+
+      if (player.muted || player.volume === 0) {
+        if (iconBtn) iconBtn.textContent = '🔇';
+        if (slider) slider.value = 0;
+      } else {
+        if (iconBtn) iconBtn.textContent = player.volume > 0.5 ? '🔊' : '🔉';
+        if (slider) slider.value = player.volume;
+      }
+    }
+
+    // Auto-hide HUD & Transport Controls when playing
+    function resetControlsAutoHide() {
+      const overlay = document.getElementById('kiosk-video-overlay');
+      const player = document.getElementById('cinema-video-player');
+      if (!overlay) return;
+
+      overlay.classList.remove('autohide');
+      clearTimeout(autoHideTimer);
+
+      if (isOverlayPlaying && player && !player.paused) {
+        autoHideTimer = setTimeout(() => {
+          if (isOverlayPlaying && player && !player.paused) {
+            overlay.classList.add('autohide');
+          }
+        }, 3500);
+      }
+    }
+
+    // Trigger Video Playback Overlay (Strict in-page overlay, zero external windows)
+    function triggerPlayVideo(videoId, title) {
+      if (!videoId) return;
+      const overlay = document.getElementById('kiosk-video-overlay');
+      const player = document.getElementById('cinema-video-player');
+      const titleEl = document.getElementById('overlay-title-text');
+      const targetSrc = `/api/videos/stream?video_id=${encodeURIComponent(videoId)}`;
+
+      console.log(`[Kiosk Video] Trigger requested for: ${videoId} (${title})`);
+
+      // 1. Guard against duplicate triggers interrupting in-flight playback
+      if (isOverlayPlaying && (activeVideoId === videoId || (player.currentSrc && player.currentSrc.includes(encodeURIComponent(videoId))))) {
+        if (player.paused) {
+          attemptPlay();
+        }
+        return;
+      }
+
+      activeVideoId = videoId;
+      isOverlayPlaying = true;
+      if (titleEl) titleEl.textContent = title || "中国·大安机车博览园 专题短片展映";
+
+      // Reset UI indicators
+      hideCenterBtn();
+      hideUnmuteBanner();
+      showBufferingSpinner(true);
+      resetControlsAutoHide();
+
+      // Show overlay smoothly
+      overlay.style.display = 'flex';
+      requestAnimationFrame(() => {
+        overlay.classList.add('active');
+      });
+
+      // Assign video source cleanly
+      player.src = targetSrc;
+      player.load();
+
+      // Attempt Playback with multi-tier policy handling
+      attemptPlay();
+    }
+
+    // Robust multi-tier play strategy
+    function attemptPlay() {
+      const player = document.getElementById('cinema-video-player');
+      if (!player) return;
+
+      // Tier 1: Attempt unmuted playback with full theater audio
+      player.muted = false;
+      const playPromise = player.play();
+
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log("[Kiosk Video] Unmuted theater playback started successfully!");
+          hideUnmuteBanner();
+          hideCenterBtn();
+          updatePlayPauseBtn(true);
+          updateVolumeUI();
+          resetControlsAutoHide();
+        }).catch(err => {
+          console.warn("[Kiosk Video] Unmuted playback restricted by browser policy. Falling back to muted autoplay:", err);
+          // Tier 2: Muted autoplay fallback (guaranteed by browsers to start immediately without interaction)
+          player.muted = true;
+          updateVolumeUI();
+          player.play().then(() => {
+            console.log("[Kiosk Video] Muted autoplay running smoothly!");
+            showUnmuteBanner();
+            updatePlayPauseBtn(true);
+            resetControlsAutoHide();
+          }).catch(err2 => {
+            console.warn("[Kiosk Video] Muted playback also restricted. Showing large Play action button:", err2);
+            showCenterBtn("▶");
+            updatePlayPauseBtn(false);
+          });
+        });
+      }
+    }
+
+    // Visitor Unmutes Audio
+    function unmuteVideo() {
+      const player = document.getElementById('cinema-video-player');
+      if (!player) return;
+      player.muted = false;
+      if (player.volume === 0) player.volume = 1;
+      hideUnmuteBanner();
+      updateVolumeUI();
+      flashCenterIcon("🔊");
+      resetControlsAutoHide();
+    }
+
+    // Toggle Play / Pause
+    function togglePlayPause() {
+      const player = document.getElementById('cinema-video-player');
+      if (!player) return;
+
+      if (player.paused) {
+        if (player.muted) {
+          player.muted = false;
+          hideUnmuteBanner();
+          updateVolumeUI();
+        }
+        player.play().then(() => {
+          updatePlayPauseBtn(true);
+          hideCenterBtn();
+          flashCenterIcon("▶");
+        }).catch(() => {
+          player.muted = true;
+          player.play();
+        });
+      } else {
+        player.pause();
+        updatePlayPauseBtn(false);
+        showCenterBtn("▶");
+        flashCenterIcon("⏸");
+      }
+      resetControlsAutoHide();
+    }
+
+    // Click on Center Action Button
+    function handleCenterBtnClick(e) {
+      e.stopPropagation();
+      const player = document.getElementById('cinema-video-player');
+      if (player && player.muted) {
+        unmuteVideo();
+      }
+      togglePlayPause();
+    }
+
+    // Click on Video Canvas Wrapper
+    function handleVideoWrapperClick(e) {
+      const target = e.target;
+      if (target.id === 'cinema-video-player' || target.id === 'overlay-video-wrapper') {
+        const player = document.getElementById('cinema-video-player');
+        if (player && player.muted) {
+          unmuteVideo();
+        } else {
+          togglePlayPause();
+        }
+      }
+    }
+
+    // Seek Timeline
+    function seekVideoProgress(e) {
+      e.stopPropagation();
+      const wrap = document.getElementById('video-progress-wrap');
+      const player = document.getElementById('cinema-video-player');
+      if (!wrap || !player || !player.duration) return;
+
+      const rect = wrap.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      player.currentTime = pct * player.duration;
+      resetControlsAutoHide();
+    }
+
+    // Skip forward / backward
+    function skipVideo(delta) {
+      const player = document.getElementById('cinema-video-player');
+      if (!player || !player.duration) return;
+      player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + delta));
+      flashCenterIcon(delta > 0 ? "+10s" : "-10s");
+      resetControlsAutoHide();
+    }
+
+    // Volume Slider Input
+    function changeVideoVolume(val) {
+      const player = document.getElementById('cinema-video-player');
+      if (!player) return;
+      const v = parseFloat(val);
+      player.volume = Math.max(0, Math.min(1, v));
+      player.muted = (v === 0);
+      if (!player.muted) hideUnmuteBanner();
+      updateVolumeUI();
+      resetControlsAutoHide();
+    }
+
+    // Volume Mute Toggle
+    function toggleMute() {
+      const player = document.getElementById('cinema-video-player');
+      if (!player) return;
+      player.muted = !player.muted;
+      if (!player.muted && player.volume === 0) {
+        player.volume = 0.8;
+      }
+      if (!player.muted) hideUnmuteBanner();
+      updateVolumeUI();
+      flashCenterIcon(player.muted ? "🔇" : "🔊");
+      resetControlsAutoHide();
+    }
+
+    // Close Video Overlay (Clean reset and return to big screen homepage)
+    function closeVideoOverlay() {
+      const overlay = document.getElementById('kiosk-video-overlay');
+      const player = document.getElementById('cinema-video-player');
+
+      clearTimeout(autoHideTimer);
+      if (overlay) {
+        overlay.classList.remove('active', 'autohide');
+        overlay.style.display = 'none';
+      }
+
+      if (player) {
+        player.pause();
+        player.removeAttribute('src'); // Cleanly detaches decoder
+        player.load();
+      }
+
+      isOverlayPlaying = false;
+      activeVideoId = null;
+
+      hideBufferingSpinner();
+      hideCenterBtn();
+      hideUnmuteBanner();
+
+      // Notify gateway backend via WebSocket and API
+      if (kioskWs && kioskWs.readyState === WebSocket.OPEN) {
+        kioskWs.send(JSON.stringify({ type: 'close_video' }));
+      }
+      fetch('/api/video/close', { method: 'POST' }).catch(() => {});
+      console.log("[Kiosk Video] Video closed. Returned cleanly to big screen homepage.");
+    }
+
+    // Register Player Event Listeners
+    const cinemaPlayer = document.getElementById('cinema-video-player');
+    if (cinemaPlayer) {
+      cinemaPlayer.addEventListener('waiting', () => {
+        showBufferingSpinner(true);
+      });
+
+      cinemaPlayer.addEventListener('canplay', () => {
+        showBufferingSpinner(false);
+      });
+
+      cinemaPlayer.addEventListener('playing', () => {
+        showBufferingSpinner(false);
+        updatePlayPauseBtn(true);
+        hideCenterBtn();
+        resetControlsAutoHide();
+      });
+
+      cinemaPlayer.addEventListener('pause', () => {
+        updatePlayPauseBtn(false);
+        if (isOverlayPlaying) {
+          showCenterBtn("▶");
+        }
+        resetControlsAutoHide();
+      });
+
+      cinemaPlayer.addEventListener('timeupdate', () => {
+        if (!cinemaPlayer.duration) return;
+        const cur = cinemaPlayer.currentTime;
+        const dur = cinemaPlayer.duration;
+        const pct = (cur / dur) * 100;
+        const playedEl = document.getElementById('video-progress-played');
+        const thumbEl = document.getElementById('video-progress-thumb');
+        const timeText = document.getElementById('video-time-text');
+        if (playedEl) playedEl.style.width = `${pct}%`;
+        if (thumbEl) thumbEl.style.left = `${pct}%`;
+        if (timeText) timeText.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+      });
+
+      cinemaPlayer.addEventListener('progress', () => {
+        if (cinemaPlayer.buffered.length > 0 && cinemaPlayer.duration) {
+          const bufferedEnd = cinemaPlayer.buffered.end(cinemaPlayer.buffered.length - 1);
+          const pct = (bufferedEnd / cinemaPlayer.duration) * 100;
+          const bufEl = document.getElementById('video-progress-buffered');
+          if (bufEl) bufEl.style.width = `${pct}%`;
+        }
+      });
+
+      // Auto-exit when video finishes
+      cinemaPlayer.addEventListener('ended', () => {
+        console.log("[Kiosk Video] Playback completed. Auto-exiting overlay.");
+        closeVideoOverlay();
+      });
+
+      // Error handler
+      cinemaPlayer.addEventListener('error', (e) => {
+        console.error("[Kiosk Video] Media error:", cinemaPlayer.error);
+        showBufferingSpinner(false);
+        showCenterBtn("⚠️");
+        const titleEl = document.getElementById('overlay-title-text');
+        if (titleEl) titleEl.textContent += " (加载异常，请点击重试)";
+      });
+    }
+
+    // Auto-hide event listeners on overlay
+    const overlayLayer = document.getElementById('kiosk-video-overlay');
+    if (overlayLayer) {
+      overlayLayer.addEventListener('mousemove', resetControlsAutoHide);
+      overlayLayer.addEventListener('touchstart', resetControlsAutoHide, { passive: true });
+    }
+
+    // Global Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (!isOverlayPlaying) return;
+      if (e.key === 'Escape') {
+        closeVideoOverlay();
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        skipVideo(10);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        skipVideo(-10);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        changeVideoVolume(cinemaPlayer ? Math.min(1, cinemaPlayer.volume + 0.1) : 1);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        changeVideoVolume(cinemaPlayer ? Math.max(0, cinemaPlayer.volume - 0.1) : 0);
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullScreen();
+      }
+    });
+
+    // Update Dialogue Display (Subtitles & Commentary)
+    function updateInquiry(text) {
+      if (!text) return;
+      const el = document.getElementById('visitor-question-text');
+      if (el) el.textContent = text;
+    }
+
+    function updateCommentary(text, isStreaming, ragMatched) {
+      const contentEl = document.getElementById('commentary-content-text');
+      const metaEl = document.getElementById('commentary-meta-tags');
+      if (!contentEl) return;
+
+      if (isStreaming) {
+        contentEl.innerHTML = `${escapeHtml(text)}<span class="typewriter-cursor"></span>`;
+      } else {
+        contentEl.innerHTML = `${escapeHtml(text)}`;
+      }
+
+      if (metaEl && ragMatched && ragMatched.length > 0) {
+        metaEl.innerHTML = ragMatched.map(r => `<span class="commentary-badge">${escapeHtml(r.title || '博览园知识区')}</span>`).join('');
+      }
+    }
+
+    // Send Prompt from Click
+    function sendPrompt(text) {
+      submitKioskPrompt(text);
+    }
+
+    // Submit Kiosk Prompt (Simulate Chat with Gateway)
+    async function submitKioskPrompt(text) {
+      if (!text) return;
+      updateInquiry(text);
+      updateCommentary("小铁正在为您准备专业解说...", true);
+
+      try {
+        const res = await fetch('/api/chat/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, role_id: 'railway_guide' })
+        });
+        const data = await res.json();
+
+        // Check if tool closed or played video
+        if (data.executed_tools && data.executed_tools.length > 0) {
+          const closeTool = data.executed_tools.find(t => t.tool === 'close_video' || t.tool?.includes('close'));
+          if (closeTool) {
+            closeVideoOverlay();
+          } else {
+            const videoTool = data.executed_tools.find(t => t.tool === 'play_video' || (t.tool?.includes('video') && !t.tool?.includes('close')));
+            if (videoTool && videoTool.result && videoTool.result.status === 'success' && videoTool.result.video_id) {
+              const vRes = videoTool.result;
+              triggerPlayVideo(vRes.video_id || vRes.title, vRes.title);
+            }
+          }
+        }
+
+        updateCommentary(data.assistant_reply || '为您讲解完毕！', false, data.rag_matched);
+      } catch (err) {
+        updateCommentary('暂时无法连接到知识库中枢，请检查网关网络状态。', false);
+      }
+    }
+
+    // ========================================================
+    // ULTRA-LOW LATENCY REAL-TIME WEBSOCKET BRIDGE (/ws/kiosk)
+    // ========================================================
+    function connectKioskWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${location.host}/ws/kiosk`;
+      kioskWs = new WebSocket(wsUrl);
+
+      kioskWs.onopen = () => {
+        console.log("[Kiosk WS] Connected to gateway real-time stream!");
+      };
+
+      kioskWs.onmessage = (event) => {
+        try {
+          const data = jsonParseSafe(event.data);
+          if (!data) return;
+
+          // 1. Initial snapshot (Update status only, never force-pop videos!)
+          if (data.type === 'init') {
+            updateDeviceCount(data.devices_online, data.devices);
+          }
+          // 2. Hardware ASR Recognized Text (0ms delay!)
+          else if (data.type === 'user_text') {
+            updateInquiry(data.text);
+            updateCommentary("小铁正在为您准备专业解说...", true, data.rag);
+          }
+          // 3. LLM Character/Token Streaming (0ms delay!)
+          else if (data.type === 'ai_stream') {
+            updateCommentary(data.full_text, true, data.rag);
+          }
+          // 4. Voice Exchange Finished
+          else if (data.type === 'ai_done') {
+            if (data.user_text) updateInquiry(data.user_text);
+            updateCommentary(data.assistant_reply, false, data.rag);
+          }
+          // 5. Trigger Video Overlay from Hardware Voice
+          else if (data.type === 'play_video') {
+            if (data.video_id || data.title) {
+              triggerPlayVideo(data.video_id || data.title, data.title);
+            }
+          }
+          // 6. Close Video Overlay from Hardware Voice Command
+          else if (data.type === 'close_video') {
+            closeVideoOverlay();
+          }
+        } catch (e) {
+          console.error("[Kiosk WS] Message parse error:", e);
+        }
+      };
+
+      kioskWs.onclose = () => {
+        setTimeout(connectKioskWebSocket, 2000);
+      };
+
+      kioskWs.onerror = () => {
+        kioskWs.close();
+      };
+    }
+
+    function updateDeviceCount(count, devices) {
+      const devIndicator = document.getElementById('device-indicator');
+      if (!devIndicator) return;
+      if (count > 0) {
+        devIndicator.textContent = `音箱在线`;
+        devIndicator.style.color = '#38bdf8';
+      } else {
+        devIndicator.textContent = `等待上线`;
+        devIndicator.style.color = '#94a3b8';
+      }
+    }
+
+    // Fallback Polling for Device Status (NEVER auto-pops videos!)
+    async function syncGatewayFallback() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        updateDeviceCount(data.devices_online, data.devices);
+      } catch (e) {}
+    }
+
+    // Fallback Polling for Conversation Logs
+    let lastLogLen = 0;
+    async function syncLogsFallback() {
+      try {
+        const res = await fetch('/api/logs');
+        if (!res.ok) return;
+        const logs = await res.json();
+        if (logs.length > 0 && logs.length !== lastLogLen) {
+          lastLogLen = logs.length;
+          const latest = logs[0];
+          if (latest.type === 'conversation' && latest.device !== '网页控制台仿真') {
+            const reply = latest.assistant_reply || latest.reply || '';
+            if (reply && !isOverlayPlaying) {
+              updateInquiry(latest.user_text || '...');
+              updateCommentary(reply, false, latest.rag_matched);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>'"]/g, 
+        tag => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          "'": '&#39;',
+          '"': '&quot;'
+        }[tag] || tag)
+      );
+    }
+
+    function jsonParseSafe(str) {
+      try { return JSON.parse(str); } catch (e) { return null; }
+    }
+
+    // Initialize
+    connectKioskWebSocket();
+    setInterval(syncGatewayFallback, 1500);
+    setInterval(syncLogsFallback, 2000);
+  </script>
+</body>
+</html>
