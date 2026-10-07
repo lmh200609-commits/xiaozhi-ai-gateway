@@ -40,7 +40,15 @@ try:
 except Exception as e:
     print(f"[*] auto_sync notice: {e}")
 
-# 5. Open Web Console in browser after 2.5s
+# 5. Self-healing check for critical runtime dependencies
+try:
+    import multipart
+except ImportError:
+    print("[*] 正在自动补全基础依赖 python-multipart...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "python-multipart", "aiofiles"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+# 6. Open Web Console in browser after 2.5s
 def open_browser():
     time.sleep(2.5)
     print("[*] 正在打开网页控制台: http://localhost:8001")
@@ -51,7 +59,7 @@ def open_browser():
 
 threading.Thread(target=open_browser, daemon=True).start()
 
-# 6. Launch Uvicorn Gateway
+# 7. Launch Uvicorn Gateway
 print("[*] 正在启动网关服务 (0.0.0.0:8001)...")
 print("[*] 【重要提示】请保持此黑框控制台运行，最小化即可，不要关闭！")
 print("=======================================================")
