@@ -1,54 +1,58 @@
-﻿@echo off
-chcp 65001 >nul
-title Xiaozhi AI Voice Gateway
+@echo off
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
+title Xiaozhi AI Voice Gateway
 
-echo =======================================================
-echo          小智 AI 语音网关 - 跨电脑便携启动器
-echo =======================================================
-
-:: 1. 优先检测当前目录的独立虚拟环境 .venv
-set "PY_CMD="
+:: 1. Check local .venv first
 if exist ".venv\Scripts\python.exe" (
     set "PY_CMD=.venv\Scripts\python.exe"
-    echo [*] 正在使用本地虚拟环境 (.venv)
+    goto :LAUNCH
 )
 
-:: 2. 若无虚拟环境，检测系统 py 或 python
-if "%PY_CMD%"=="" (
-    where py >nul 2>nul
-    if not errorlevel 1 (
-        set "PY_CMD=py -3.11"
-        echo [*] 正在使用系统 Python Launcher (py -3.11)
-    )
+:: 2. Check py launcher with preferred stable versions
+py -3.11 -V >nul 2>nul
+if not errorlevel 1 (
+    set "PY_CMD=py -3.11"
+    goto :LAUNCH
 )
 
-if "%PY_CMD%"=="" (
-    where python >nul 2>nul
-    if not errorlevel 1 (
-        set "PY_CMD=python"
-        echo [*] 正在使用系统 python
-    )
+py -3.10 -V >nul 2>nul
+if not errorlevel 1 (
+    set "PY_CMD=py -3.10"
+    goto :LAUNCH
 )
 
-if "%PY_CMD%"=="" (
-    echo.
-    echo [错误] 未在系统中检测到可用 Python 环境！
-    echo 请先安装 Python 3.10 或 3.11，并确保勾选 'Add Python to PATH'。
-    echo 或先运行 setup_env.bat 自动配置环境。
-    echo.
-    pause
-    exit /b 1
+py -3.12 -V >nul 2>nul
+if not errorlevel 1 (
+    set "PY_CMD=py -3.12"
+    goto :LAUNCH
 )
 
-echo [*] 工作根目录: %~dp0
-echo [*] 正在启动网关服务...
-echo.
+py -3 -V >nul 2>nul
+if not errorlevel 1 (
+    set "PY_CMD=py -3"
+    goto :LAUNCH
+)
 
+python -V >nul 2>nul
+if not errorlevel 1 (
+    set "PY_CMD=python"
+    goto :LAUNCH
+)
+
+echo [ERROR] No suitable Python installation found!
+echo Please install Python 3.11 or 3.10 from https://www.python.org/
+echo Make sure to check "Add Python to PATH" during installation.
+pause
+exit /b 1
+
+:LAUNCH
+echo [*] Launching Xiaozhi Gateway with %PY_CMD%...
 %PY_CMD% "gateway\scripts\run_gateway.py"
 
 if errorlevel 1 (
     echo.
-    echo [提示] 网关异常退出。如果是首次在新电脑运行，请先双击 setup_env.bat 安装依赖。
+    echo [NOTICE] Gateway exited with error.
+    echo If this is your first time running, please run setup_env.bat first!
     pause
 )
