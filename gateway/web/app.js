@@ -4,7 +4,7 @@ let allRoles = [];
 let activeRoleId = "assistant";
 let allDocs = [];
 let allZones = [];
-let activeZoneId = "baicheng_railway";
+let activeZoneId = "default_zone";
 let allVideos = [];
 let activeZoneSubTab = "docs"; // 'docs' or 'videos'
 let currentPlayingVideoKey = null;
@@ -24,10 +24,10 @@ function switchTab(tabName) {
     // Update Page Title
     const titles = {
       devices: { t: "📱 硬件设备看板", s: "实时监控小智 ESP32-S3 连接状态 · MCP 硬件调控 · 毫秒级语音链路" },
-      knowledge: { t: "🏛️ 知识区管理 (博览园中枢)", s: "中国·大安机车博览园专属知识中枢 · 权威文本知识库与全屏展播视频综合管理" },
-      roles: { t: "🎭 角色人设与音色", s: "预置场景人设 · 微软自然神经网络音色 · 火车园区导览员小铁" },
+      knowledge: { t: "🏛️ 知识区管理 (知识中枢)", s: "私有化专属知识中枢 · 权威文档知识库与展播视频综合管理" },
+      roles: { t: "🎭 角色人设与音色", s: "预置场景人设 · 微软自然神经网络音色 · 极速切换" },
       chat: { t: "💬 交互仿真与日志", s: "零硬件快速对话仿真 · 开发板语音交互耗时瀑布流与全链路透视" },
-      settings: { t: "⚙️ 网关系统配置", s: "配置自建 Gemini 3.8 Flash 中转池 · 本地 SenseVoice ASR · Edge-TTS 引擎" }
+      settings: { t: "⚙️ 网关系统配置", s: "配置 DeepSeek / 兼容大模型中转 · 本地 SenseVoice ASR · Edge-TTS 引擎" }
     };
     if (titles[tabName]) {
       const pt = document.getElementById('page-title');
@@ -60,7 +60,12 @@ async function fetchStatus() {
 
     // Header Badges
     const modelBadge = document.getElementById('header-model-badge');
-    if (modelBadge && data.config) modelBadge.textContent = `模型: ${data.config.model_name}`;
+    if (modelBadge && data.config) modelBadge.textContent = `模型: ${data.config.model_name || 'deepseek-chat'}`;
+
+    const upBadge = document.getElementById('upload-model-badge');
+    if (upBadge && data.config) {
+      upBadge.textContent = `✨ 当前解析模型：${data.config.model_name || 'deepseek-chat'} · AI 自动蒸馏 FAQ 与切片`;
+    }
 
     if (data.active_role) {
       activeRoleId = data.active_role.id;
@@ -76,6 +81,9 @@ async function fetchStatus() {
     const statDevCount = document.getElementById('stat-device-count');
     if (statDevCount) statDevCount.textContent = `${data.devices_online || 0} 台`;
 
+    const statLan = document.getElementById('stat-lan-ip');
+    if (statLan) statLan.textContent = window.location.host;
+
     // Sidebar bottom widget
     const dot = document.getElementById('sidebar-dot');
     const statusText = document.getElementById('sidebar-status-text');
@@ -90,7 +98,7 @@ async function fetchStatus() {
       } else {
         dot.style.background = "#94a3b8";
         statusText.textContent = "等待小智连接";
-        infoText.textContent = `网关: 10.90.169.206:8001`;
+        infoText.textContent = `网关: ${window.location.host}`;
       }
     }
 
@@ -510,12 +518,18 @@ async function uploadFile(file) {
     });
     const result = await res.json();
     if (res.ok) {
-      const modeDesc = result.mode === 'ai_enhanced' ? 'AI 智能增强' : '本地语义高精切片';
+      const isAi = result.mode === 'ai_distilled';
+      const modelName = result.model || currentConfig.model_name || 'DeepSeek';
+      const modeDesc = isAi ? `✨ ${modelName} 深度蒸馏` : '本地高精切片';
       if (titleText) titleText.textContent = `🎉 入库完成: 《${result.title}》 (${modeDesc})`;
-      if (detailText) detailText.textContent = `已生成 ${result.qa_count} 个 FAQ 问答对与 ${result.fact_count} 个语义切片，并成功建立向量索引！归入【${result.zone_name}】`;
+      let detailMsg = `已成功提炼 ${result.qa_count} 个高频 FAQ 与 ${result.fact_count} 个事实切片，已入库【${result.zone_name}】`;
+      if (result.warning) {
+        detailMsg += `\n⚠️ 提示: ${result.warning}`;
+      }
+      if (detailText) detailText.textContent = detailMsg;
       setTimeout(() => {
         if (progressBox) progressBox.style.display = 'none';
-      }, 4000);
+      }, 5000);
       fetchKnowledge();
       fetchZones();
       fetchStatus();
@@ -1241,7 +1255,43 @@ async function sendSimulation() {
   }
 }
 
-// ================= System Settings =================
+// ================= System Settings & Presets =================
+const MODEL_PRESETS = {
+  deepseek: {
+    url: "https://api.deepseek.com/v1",
+    model: "deepseek-chat"
+  },
+  siliconflow: {
+    url: "https://api.siliconflow.cn/v1",
+    model: "deepseek-ai/DeepSeek-V3"
+  },
+  zhipu: {
+    url: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-4-flash"
+  },
+  moonshot: {
+    url: "https://api.moonshot.cn/v1",
+    model: "moonshot-v1-8k"
+  },
+  openai: {
+    url: "https://api.openai.com/v1",
+    model: "gpt-4o-mini"
+  }
+};
+
+function applyModelPreset(name) {
+  const p = MODEL_PRESETS[name];
+  if (!p) return;
+  const rUrl = document.getElementById('cfg-relay-url');
+  const rMod = document.getElementById('cfg-model-name');
+  if (rUrl) rUrl.value = p.url;
+  if (rMod) rMod.value = p.model;
+  const rKey = document.getElementById('cfg-api-key');
+  if (rKey) {
+    if (!rKey.value) rKey.focus();
+  }
+}
+
 async function loadConfigInputs() {
   try {
     if (!currentConfig || !currentConfig.relay_base_url) {
@@ -1257,9 +1307,9 @@ async function loadConfigInputs() {
     const rTts = document.getElementById('cfg-tts-voice');
     const rPrm = document.getElementById('cfg-prompt');
 
-    if (rUrl) rUrl.value = currentConfig.relay_base_url || 'https://txwgcheshiyum.xyz/v1';
-    if (rKey) rKey.value = currentConfig.relay_api_key || 'sk-wy74DcAeQ9cL4D66aOaqN0wSwc1LwJPNJtQHroD0cBIn8jp6';
-    if (rMod) rMod.value = currentConfig.model_name || 'gemini-3.8-flash';
+    if (rUrl) rUrl.value = currentConfig.relay_base_url || 'https://api.deepseek.com/v1';
+    if (rKey) rKey.value = currentConfig.relay_api_key || '';
+    if (rMod) rMod.value = currentConfig.model_name || 'deepseek-chat';
     if (rTts) rTts.value = currentConfig.tts_voice || 'zh-CN-YunxiNeural';
     if (rPrm) rPrm.value = currentConfig.system_prompt || '';
   } catch (e) {

@@ -107,14 +107,26 @@ class RelayLLMClient:
         full_reply = ""
         tool_calls = []
 
-        url = f"{config.relay_base_url.rstrip('/')}/chat/completions"
+        if not config.relay_api_key or config.relay_api_key in ("sk-default", "none"):
+            yield "[LLM] 未配置大模型 API Key。请在控制台【系统配置】页面填入您的 DeepSeek 或兼容大模型 API 密钥。", None, {"ttft_ms": 0, "total_ms": 0}
+            return
+
+        url = config.get_chat_url()
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 async with client.stream("POST", url, json=payload, headers=headers) as response:
                     if response.status_code != 200:
                         err_body = await response.aread()
-                        err_msg = f"[LLM] Error {response.status_code}: {err_body.decode('utf-8', errors='replace')}"
+                        err_text = err_body.decode('utf-8', errors='replace')
+                        if response.status_code == 401:
+                            err_msg = f"[LLM 认证失败 401] 您的 API Key 无效或已过期，请在网关配置中检查填写的 Key。"
+                        elif response.status_code == 402:
+                            err_msg = f"[LLM 余额不足 402] 您的 API 账户余额已耗尽，请前往对应服务商充值。"
+                        elif response.status_code == 429:
+                            err_msg = f"[LLM 频率超限 429] 触发服务商流控或并发限制，请稍后重试。"
+                        else:
+                            err_msg = f"[LLM] 请求异常 HTTP {response.status_code}: {err_text}"
                         yield err_msg, None, {"ttft_ms": 0, "total_ms": 0}
                         return
 

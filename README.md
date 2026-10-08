@@ -2,6 +2,8 @@
 
 本项目是基于 ESP32 硬件与自建 Python 后端网关的小智 AI 语音助手全套工作区，支持离线语音识别 (SenseVoice)、在线流式语音合成 (Edge-TTS)、大模型对话中转、知识库 RAG 检索、设备端 MCP 工具调用及电脑端展厅展映控制。
 
+> 📖 **全新通用化配置与大模型适配指南**: 请参阅 [ADAPTATION_GUIDE.md](ADAPTATION_GUIDE.md)，了解如何一键接入 DeepSeek、SiliconFlow、智谱 GLM、知识库 AI 深度蒸馏、WiFi 配网与场景人设隔离。
+
 ---
 
 ## 快速上手指南（新电脑部署）

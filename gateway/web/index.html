@@ -56,7 +56,7 @@
           <span id="sidebar-status-text">硬件检测中...</span>
         </div>
         <div class="device-info-text" id="sidebar-device-info">
-          监听地址: 10.90.169.206:8001
+          服务地址: 同步中...
         </div>
       </div>
     </aside>
@@ -70,17 +70,17 @@
           <p id="page-subtitle">实时监控小智 ESP32-S3 连接状态 · MCP 硬件调控 · 毫秒级语音链路</p>
         </div>
         <div class="header-badges">
-          <div class="badge badge-success">
-            <span class="dot-pulse" style="width:7px; height:7px;"></span> 端口: 8001
+          <div class="badge badge-success" id="header-port-badge">
+            <span class="dot-pulse" style="width:7px; height:7px;"></span> 网关就绪
           </div>
           <div class="badge badge-model" id="header-model-badge">
-            模型: gemini-3.8-flash
+            模型: deepseek-chat
           </div>
           <div class="badge badge-role" id="header-role-badge">
             人设: 智能管家
           </div>
           <div class="badge badge-rag" id="header-rag-badge">
-            知识库: 2 篇
+            知识库: 0 篇
           </div>
           <a href="/kiosk.html" target="_blank" class="badge" style="background:linear-gradient(135deg, #0284c7, #38bdf8); color:#fff; text-decoration:none; cursor:pointer; font-weight:600; padding:6px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(56,189,248,0.3); border:none;">
             🖥️ 启动展厅大屏 ↗
@@ -101,7 +101,7 @@
           <div class="stat-box">
             <div class="stat-icon">🌐</div>
             <div>
-              <div class="stat-value">10.90.169.206:8001</div>
+              <div class="stat-value" id="stat-lan-ip">检测中...</div>
               <div class="stat-label">局域网服务地址</div>
             </div>
           </div>
@@ -167,17 +167,17 @@
 
         <div class="card" style="background: #f0f7ff; border-color: #bfdbfe;">
           <div class="card-header" style="border-color: #e0edfe;">
-            <h2 style="color: #2563eb;">💡 热点与连接指引</h2>
+            <h2 style="color: #2563eb;">💡 Wi-Fi 与硬件配网指引</h2>
           </div>
           <p style="font-size: 13px; color: #475569; line-height: 1.7;">
-            • <strong>预置热点</strong>：WiFi 名称 <code>vivo X200s</code>，密码 <code>lmh200609</code>。<br>
-            • <strong>专属通信链路</strong>：开机自动请求 <code>http://10.90.169.206:8001/ota/</code> 获取 WebSocket 连接，完全绕过官方旧服务器。<br>
-            • <strong>硬件调控</strong>：小智连入后会自动注册 MCP 硬件工具，支持在网页滑块实时调节音量与背光。
+            • <strong>Wi-Fi 连接</strong>：小智支持标准 2.4GHz Wi-Fi。首次使用可按住开发板 BOOT 键 5 秒进入 AP 配网模式（手机连接小智热点后浏览器访问 <code>192.168.4.1</code>），或在 <code>nvs_config.csv</code> 中填入您的热点名称与密码。<br>
+            • <strong>专属通信链路</strong>：开机自动通过当前网关获取 OTA 与 WebSocket 长连接，纯内网极速低延迟，彻底摆脱外部服务器依赖。<br>
+            • <strong>硬件 MCP 调控</strong>：小智连入后会自动注册硬件控制工具，支持实时调节喇叭音量、屏幕亮度与状态播报。
           </p>
         </div>
       </section>
 
-      <!-- ================= TAB 2: 🏛️ 知识区管理 (园区中枢) ================= -->
+      <!-- ================= TAB 2: 🏛️ 知识区管理 (知识中枢) ================= -->
       <section id="tab-knowledge" class="tab-panel">
         <!-- Knowledge Zone Top Bar -->
         <div class="zone-header-card">
@@ -186,7 +186,7 @@
             <div>
               <div style="font-size:11px; color:#64748b; font-weight:700;">当前选择的知识区：</div>
               <select id="zone-select" class="zone-select-dropdown" onchange="handleZoneChange(this.value)">
-                <option value="baicheng_railway">🚂 中国·大安机车博览园知识区 (默认)</option>
+                <option value="default_zone">📚 默认通用知识区 (默认)</option>
               </select>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="openAddZoneModal()">+ 新建知识区</button>
@@ -214,14 +214,14 @@
           <div class="card" style="border: 2px dashed #bfdbfe; background: #fafdff;">
             <div class="card-header">
               <h2>📤 智能知识文档导入 (支持 Word / Markdown / PDF / 文本)</h2>
-              <span class="stat-label">AI 自动结构化梳理 · 提炼高频 FAQ 问答与事实切片</span>
+              <span class="stat-label" id="upload-model-badge">✨ 全局 AI 大模型自动蒸馏 · 提炼高频 FAQ 问答与事实切片</span>
             </div>
             
             <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
               <div class="upload-icon">📂</div>
               <div class="upload-title">点击选择文件，或直接拖拽文件到这里</div>
-              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 将自动存入当前知识区</div>
-              <div class="upload-tag">✨ 本地永久存储 · 原则上无容量限制 · 双引擎智能切片与知识蒸馏</div>
+              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 自动存入当前知识区</div>
+              <div class="upload-tag" id="upload-engine-tag">✨ 全局大模型智能解析 (DeepSeek / OpenAI 兼容) · 提炼高频 FAQ 问答与核心知识切片</div>
               <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf,.csv,.json" onchange="handleFileSelected(event)">
             </div>
 
@@ -377,22 +377,35 @@
       <section id="tab-settings" class="tab-panel">
         <div class="card" style="max-width: 800px; margin: 0 auto;">
           <div class="card-header">
-            <h2>⚙️ 大模型中转池与语音引擎配置</h2>
+            <h2>⚙️ 大模型中转与语音引擎配置 (全局生效)</h2>
           </div>
           <div class="modal-body" style="padding: 0;">
+            <div style="background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+              <label style="font-weight: 700; color: #0f172a; margin-bottom: 8px; display: block;">⚡ 常用大模型服务商一键快捷填入：</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="applyModelPreset('deepseek')">🔵 DeepSeek 官方 (推荐)</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="applyModelPreset('siliconflow')">🟣 SiliconFlow 硅基流动</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="applyModelPreset('zhipu')">🟡 智谱 GLM-4</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="applyModelPreset('moonshot')">🌙 Moonshot 月之暗面</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="applyModelPreset('openai')">🟢 OpenAI / 自建中转</button>
+              </div>
+              <small style="color: #64748b; margin-top: 8px; display: block;">💡 点击上方对应服务商可自动填入标准 Base URL 与模型名称，您只需在下方粘贴自己的 API Key 即可保存生效。</small>
+            </div>
+
             <div class="form-group">
               <label>大模型中转地址 (Relay Base URL)</label>
-              <input type="text" id="cfg-relay-url" placeholder="https://txwgcheshiyum.xyz/v1">
-              <small>指向你部署的 Gemini / OpenAI 格式中转服务地址</small>
+              <input type="text" id="cfg-relay-url" placeholder="https://api.deepseek.com/v1">
+              <small>支持 DeepSeek 官方接口、SiliconFlow、OpenAI 等标准兼容接口</small>
             </div>
             <div class="form-group">
-              <label>中转站主密钥 (API Key)</label>
-              <input type="text" id="cfg-api-key" placeholder="sk-...">
+              <label>大模型 API 密钥 (API Key)</label>
+              <input type="password" id="cfg-api-key" placeholder="sk-..." style="font-family: monospace;">
+              <small>在对应服务商控制台申请的 API 密钥（如 DeepSeek 开发者控制台）</small>
             </div>
             <div class="form-group">
               <label>模型型号 (Model)</label>
-              <input type="text" id="cfg-model-name" placeholder="gemini-3.8-flash">
-              <small>推荐 Gemini 3.8 Flash，具备低延迟流式响应与强大的中英双语口语理解</small>
+              <input type="text" id="cfg-model-name" placeholder="deepseek-chat">
+              <small>全局默认模型：ESP32 硬件语音对话、知识库文档 AI 蒸馏切片、多媒体联动均统一调用此模型</small>
             </div>
             <div class="form-group">
               <label>全局默认 TTS 语音音色</label>
@@ -407,7 +420,7 @@
               </select>
             </div>
             <div class="form-group">
-              <label>全局备用系统提示词 (System Prompt)</label>
+              <label>全局默认系统提示词 (System Prompt)</label>
               <textarea id="cfg-prompt" rows="3"></textarea>
             </div>
             <div style="margin-top: 10px;">

@@ -362,7 +362,7 @@ async def get_knowledge_doc(doc_id: str):
 @app.post("/api/knowledge/upload")
 async def upload_knowledge_file(
     file: UploadFile = File(...),
-    zone_id: str = Form("baicheng_railway")
+    zone_id: Optional[str] = Form(None)
 ):
     try:
         filename = file.filename or "upload.txt"
@@ -375,15 +375,16 @@ async def upload_knowledge_file(
         if not raw_text.strip():
             return JSONResponse(status_code=400, content={"error": "未能从文件中解析出有效文本内容"})
 
-        target_zone = zone_manager.get_zone(zone_id) or zone_manager.get_active_zone()
-        zone_name = target_zone.get("name", "白城火车园区知识区")
+        target_zone = (zone_manager.get_zone(zone_id) if zone_id else None) or zone_manager.get_active_zone()
+        zone_name = target_zone.get("name", "默认通用知识区")
 
         print(f"[RAG Upload] Starting document structuring for: {filename} in zone: {zone_name}...")
         try:
             structured_data = await KnowledgeStructurer.structure_document(filename, raw_text)
         except Exception as ex_struct:
-            print(f"[RAG Upload] Cloud structuring exception: {ex_struct}, falling back to local semantic chunker")
+            print(f"[RAG Upload] Structuring exception: {ex_struct}, falling back to local semantic chunker")
             structured_data = KnowledgeStructurer.build_local_structured_data(filename, raw_text)
+            structured_data["warning"] = f"解析过程发生异常 ({str(ex_struct)})，已自动启用本地高精切片引擎为您完成入库。"
 
         doc_id = knowledge_store.add_structured_document(
             doc_data=structured_data,
@@ -403,7 +404,9 @@ async def upload_knowledge_file(
             "zone_name": zone_name,
             "qa_count": len(structured_data.get("qa_pairs", [])),
             "fact_count": len(structured_data.get("fact_chunks", [])),
-            "mode": structured_data.get("mode", "local_semantic")
+            "mode": structured_data.get("mode", "local_semantic"),
+            "model": structured_data.get("model", config.model_name),
+            "warning": structured_data.get("warning", "")
         }
     except Exception as e:
         print(f"[RAG Upload] Error: {e}")
@@ -425,7 +428,7 @@ async def add_knowledge(req: Request):
         content=content,
         category=category,
         zone_id=target_zone["id"],
-        zone_name=target_zone.get("name", "白城火车园区知识区")
+        zone_name=target_zone.get("name", "默认通用知识区")
     )
     return {"status": "ok", "doc_id": doc_id}
 

@@ -14,12 +14,12 @@ ZONES_FILE = DATA_DIR / "zones.json"
 
 DEFAULT_ZONES = [
     {
-        "id": "baicheng_railway",
-        "name": "中国·大安机车博览园知识区",
-        "icon": "🚂",
-        "description": "中国·大安机车博览园（吉林白城大安）专属智慧导览知识区。拥有世界最大规模76台蒸汽机车群、22台内燃机车、3台电力机车、三场两馆一线一平台全景导览、朱德号/毛泽东号/黄继光号英雄机车档案与多媒体展映。",
+        "id": "default_zone",
+        "name": "默认通用知识区",
+        "icon": "📚",
+        "description": "全局默认通用知识库，支持上传任意行业业务文档、产品手册与常见 FAQ 知识。",
         "is_default": True,
-        "created_at": "2026-09-29 20:00:00"
+        "created_at": "2026-10-01 00:00:00"
     }
 ]
 
@@ -30,7 +30,7 @@ class KnowledgeZoneManager:
     def __init__(self, zones_file: Path = ZONES_FILE):
         self.zones_file = zones_file
         self.zones_file.parent.mkdir(parents=True, exist_ok=True)
-        self.active_zone_id = "baicheng_railway"
+        self.active_zone_id = "default_zone"
         self._ensure_zones_file()
 
     def _ensure_zones_file(self):
@@ -105,15 +105,19 @@ class KnowledgeZoneManager:
         zones = [z for z in zones if z.get("id") != zone_id]
         self.save_zones(zones)
         if self.active_zone_id == zone_id:
-            self.active_zone_id = "baicheng_railway"
+            self.active_zone_id = zones[0]["id"] if zones else "default_zone"
         print(f"[ZoneManager] Deleted knowledge zone: {zone_id}")
         return True
 
     def get_active_zone(self) -> Dict[str, Any]:
         zone = self.get_zone(self.active_zone_id)
         if not zone:
-            self.active_zone_id = "baicheng_railway"
-            zone = self.get_zone("baicheng_railway") or DEFAULT_ZONES[0]
+            zones = self.list_zones()
+            if zones:
+                self.active_zone_id = zones[0]["id"]
+                return zones[0]
+            self.active_zone_id = "default_zone"
+            zone = DEFAULT_ZONES[0]
         return zone
 
     def set_active_zone(self, zone_id: str) -> bool:

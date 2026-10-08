@@ -9,40 +9,56 @@ try:
 except ImportError:
     jieba = None
 
-STRUCTURING_PROMPT = """你是一名企业级 RAG 知识库与智能语音问答架构专家。
-请将用户上传的文档内容进行【智能梳理与知识蒸馏】，转换为语音知识库结构化数据，供智能硬件（小智）精准检索回答。
+STRUCTURING_PROMPT = """你是一名企业级 RAG 知识库与智能硬件语音问答架构专家。
+请将用户上传的文档内容进行【高精度语义梳理与知识蒸馏】，转换为语音知识库结构化数据，供智能硬件（小智）在接收到用户口语提问时精准检索并播报。
 
-【规范要求】：
-1. title: 提炼规范化文档主标题。
-2. category: 分类名称（如：硬件操作、故障排查、常见FAQ、游园导览、通用规则等）。
-3. summary: 50字以内的核心摘要。
-4. qa_pairs: 提炼 3~8 个真实用户视角的口语化高频问答对（question、answer必须通俗简练、keywords核心词列表）。
-5. fact_chunks: 提炼 3~8 个语义独立的客观事实切片（title、content）。
+【任务与输出规范】：
+1. title: 规范化提炼文档主标题（去除冗余副标，简明准确）。
+2. category: 提炼所属业务领域分类（如：硬件操作、故障排查、常见FAQ、产品使用、游园导览、系统规则等）。
+3. summary: 100字以内的核心知识摘要。
+4. qa_pairs: 提炼 5~15 个真实用户在硬件端会以口语提问的高频问答对：
+   - question: 贴近真实口语提问（如："小智，如果喇叭声音卡顿该怎么办？"、"怎么重新配置WiFi？"）。
+   - answer: 适合智能硬件语音播报的自然口语回答（2~4句话内直奔要点，语言亲切，严禁使用Markdown表格或代码块）。
+   - keywords: 3~6个核心检索关键词列表。
+5. fact_chunks: 提炼 5~15 个语义独立、信息密度高的客观事实知识切片：
+   - title: 该切片的知识点小标题。
+   - content: 事实陈述（消除代词歧义，保持自包含）。
 
-【必须返回纯 JSON 格式】：
+【输出格式要求】：
+必须返回纯 JSON 对象格式，不要输出任何额外的思考过程或闲聊：
 {
   "title": "文档标题",
-  "category": "分类",
-  "summary": "简短摘要",
+  "category": "领域分类",
+  "summary": "文档核心摘要",
   "qa_pairs": [
-    {"question": "用户会怎么问？", "answer": "简明口语回答", "keywords": ["词1", "词2"]}
+    {
+      "question": "用户口语提问？",
+      "answer": "亲切自然的口语回答",
+      "keywords": ["关键词1", "关键词2"]
+    }
   ],
   "fact_chunks": [
-    {"title": "知识点标题", "content": "事实描述"}
+    {
+      "title": "知识切片标题",
+      "content": "独立完整的客观事实描述"
+    }
   ]
 }
 """
 
 class KnowledgeStructurer:
     """
-    Dual-engine Document Structurer:
-    1. Local High-Precision Semantic Chunker & FAQ Extractor (100% offline, 0ms latency, zero failure).
-    2. Optional Cloud LLM Enhancement (graceful fallback if cloud AI is slow, rate-limited, or unavailable).
+    Intelligent Document Structurer:
+    1. Cloud LLM Knowledge Distillation (Primary & Default):
+       Dynamically uses the user's configured model (e.g. DeepSeek-V3 / DeepSeek-R1 / OpenAI compatible)
+       to perform deep semantic extraction of QA pairs, fact chunks, and summaries.
+    2. Local High-Precision Semantic Chunker:
+       Guaranteed fallback safety net if cloud API key is unconfigured or network is unreachable.
     """
 
     @staticmethod
     def extract_keywords(text: str, top_k: int = 5) -> List[str]:
-        """Extracts Chinese/English keywords locally using jieba."""
+        """Extracts Chinese/English keywords locally using jieba or regex."""
         if not text or not text.strip():
             return []
         if jieba and hasattr(jieba, "analyse"):
@@ -52,7 +68,6 @@ class KnowledgeStructurer:
                     return tags
             except Exception:
                 pass
-        # Fallback keyword extraction: split words >= 2 chars
         words = re.findall(r'[\u4e00-\u9fa5]{2,6}|[a-zA-Z0-9]{2,15}', text)
         return list(dict.fromkeys(words))[:top_k]
 
@@ -60,7 +75,7 @@ class KnowledgeStructurer:
     def build_local_structured_data(filename: str, raw_text: str) -> Dict[str, Any]:
         """
         Deterministic, local rule-based document structuring & sliding-window semantic chunking.
-        Never fails, handles documents of any length, extracts QA pairs and comprehensive fact chunks.
+        Used as guaranteed fallback.
         """
         clean_text = raw_text.strip()
         lines = [line.strip() for line in clean_text.splitlines() if line.strip()]
@@ -117,12 +132,10 @@ class KnowledgeStructurer:
                     "keywords": kws
                 })
 
-        # Also search for standalone question lines ending in ? followed by answer paragraph
         for i, line in enumerate(lines[:-1]):
             if (line.endswith("？") or line.endswith("?")) and 4 <= len(line) <= 40:
                 next_line = lines[i+1]
                 if len(next_line) >= 10 and not next_line.endswith(("？", "?")):
-                    # Avoid duplicates
                     if not any(qa["question"] == line for qa in qa_pairs):
                         qa_pairs.append({
                             "question": line,
@@ -139,13 +152,11 @@ class KnowledgeStructurer:
         current_length = 0
 
         for p in raw_paragraphs:
-            # Check if this paragraph is a section heading
             is_heading = (
                 p.startswith(("#", "一、", "二、", "三、", "四、", "五、", "六、", "七、", "八、", "九、", "十、", "第")) or
                 (len(p) <= 30 and (p.endswith("：") or p.endswith(":")))
             )
             if is_heading:
-                # Flush existing chunk
                 if current_chunk:
                     chunk_body = "\n".join(current_chunk)
                     fact_chunks.append({
@@ -160,14 +171,12 @@ class KnowledgeStructurer:
             current_chunk.append(p)
             current_length += len(p)
 
-            # If chunk is around 250-600 characters, save and roll
             if current_length >= 350:
                 chunk_body = "\n".join(current_chunk)
                 fact_chunks.append({
                     "title": current_heading,
                     "content": chunk_body
                 })
-                # Retain last short paragraph as context overlap (50 chars)
                 if len(current_chunk[-1]) <= 80:
                     current_chunk = [current_chunk[-1]]
                     current_length = len(current_chunk[0])
@@ -175,7 +184,6 @@ class KnowledgeStructurer:
                     current_chunk = []
                     current_length = 0
 
-        # Flush any remaining text
         if current_chunk:
             chunk_body = "\n".join(current_chunk)
             fact_chunks.append({
@@ -183,7 +191,6 @@ class KnowledgeStructurer:
                 "content": chunk_body
             })
 
-        # If still no fact chunks (e.g. one giant continuous paragraph), slice by window
         if not fact_chunks and clean_text:
             chunk_size = 400
             for idx, start_i in enumerate(range(0, len(clean_text), chunk_size - 60)):
@@ -206,94 +213,260 @@ class KnowledgeStructurer:
     @staticmethod
     async def structure_document(filename: str, raw_text: str) -> Dict[str, Any]:
         """
-        Structures raw document text. Always guarantees success via Local Semantic Chunker,
-        with optional Cloud LLM enhancement when available.
+        Structures raw document text into knowledge base entities.
+        Primary: Cloud LLM configured by user (DeepSeek / OpenAI compatible).
+        Fallback: Local semantic chunker (if API key not configured or API error).
         """
-        # Step 1: Always prepare high-quality local structured baseline first
-        local_data = KnowledgeStructurer.build_local_structured_data(filename, raw_text)
+        clean_text = raw_text.strip()
+        if not clean_text:
+            raise ValueError("文档内容为空")
 
-        # Step 2: Attempt Cloud LLM Enhancement if configured
-        if not config.relay_api_key or config.relay_api_key in ("sk-default", "none"):
-            print("[KnowledgeStructurer] Cloud LLM not configured, using local high-performance semantic chunker.")
+        # Prepare local baseline chunk data in case fallback or chunk merging is needed
+        local_data = KnowledgeStructurer.build_local_structured_data(filename, clean_text)
+
+        # Check API Key configuration
+        api_key = (config.relay_api_key or "").strip()
+        if not api_key or api_key in ("sk-default", "none"):
+            msg = "未配置大模型 API Key。已使用本地高精切片引擎为您完成入库。如需获得最佳 AI 问答蒸馏效果，请前往【网关系统配置】填入您的 DeepSeek API Key。"
+            print(f"[KnowledgeStructurer] {msg}")
+            local_data["warning"] = msg
+            local_data["mode"] = "local_semantic"
             return local_data
 
-        try:
-            # Send sample text (limit to 5,000 chars for rapid response < 10s and token safety)
-            sample_text = raw_text[:5000]
-            user_content = f"【文件名】：{filename}\n\n【原始文档内容】：\n{sample_text}"
+        chat_url = config.get_chat_url()
+        model_name = config.model_name or "deepseek-chat"
+
+        # Long document strategy: If text > 10,000 characters, chunk and process segments
+        segments = []
+        if len(clean_text) <= 9000:
+            segments.append(clean_text)
+        else:
+            # Multi-segment distillation for extensive documents
+            step = 7000
+            for i in range(0, min(len(clean_text), 21000), step):
+                segments.append(clean_text[i:i + step])
+
+        accumulated_qa = []
+        accumulated_facts = []
+        final_title = local_data["title"]
+        final_category = local_data["category"]
+        final_summary = local_data["summary"]
+
+        for seg_idx, segment in enumerate(segments):
+            seg_prefix = f" (第 {seg_idx+1} 部分)" if len(segments) > 1 else ""
+            user_content = (
+                f"【文件名】：{filename}{seg_prefix}\n\n"
+                f"【文档内容】：\n{segment}"
+            )
+
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
 
             payload = {
-                "model": config.model_name,
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": STRUCTURING_PROMPT},
                     {"role": "user", "content": user_content}
                 ],
-                "temperature": 0.2
+                "temperature": 0.2,
+                "max_tokens": 4096,
+                "response_format": {"type": "json_object"}
             }
 
-            headers = {
-                "Authorization": f"Bearer {config.relay_api_key}",
-                "Content-Type": "application/json"
+            # 60s timeout for thorough LLM distillation
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                try:
+                    resp = await client.post(chat_url, json=payload, headers=headers)
+                    # If response_format is rejected by some older proxy, retry without it
+                    if resp.status_code == 400 and "response_format" in resp.text:
+                        payload.pop("response_format", None)
+                        resp = await client.post(chat_url, json=payload, headers=headers)
+
+                    if resp.status_code == 200:
+                        res_json = resp.json()
+                        reply_content = res_json["choices"][0]["message"]["content"]
+                        parsed_llm = KnowledgeStructurer._extract_json(reply_content)
+
+                        if parsed_llm and isinstance(parsed_llm, dict):
+                            if seg_idx == 0:
+                                if parsed_llm.get("title"):
+                                    final_title = str(parsed_llm["title"]).strip()
+                                if parsed_llm.get("category"):
+                                    final_category = str(parsed_llm["category"]).strip()
+                                if parsed_llm.get("summary"):
+                                    final_summary = str(parsed_llm["summary"]).strip()
+
+                            qa_list = parsed_llm.get("qa_pairs") or []
+                            for qa in qa_list:
+                                if isinstance(qa, dict) and qa.get("question") and qa.get("answer"):
+                                    # Normalize keywords
+                                    if not qa.get("keywords"):
+                                        qa["keywords"] = KnowledgeStructurer.extract_keywords(f"{qa['question']} {qa['answer']}", 4)
+                                    accumulated_qa.append(qa)
+
+                            fact_list = parsed_llm.get("fact_chunks") or []
+                            for fc in fact_list:
+                                if isinstance(fc, dict) and fc.get("content"):
+                                    if not fc.get("title"):
+                                        fc["title"] = final_title
+                                    accumulated_facts.append(fc)
+
+                    elif resp.status_code == 401:
+                        warn_msg = f"大模型认证失败 (HTTP 401: API Key 无效或未生效)。已切换为本地高精切片引擎保底入库，请在【系统配置】中检查 API Key。"
+                        print(f"[KnowledgeStructurer] {warn_msg}")
+                        local_data["warning"] = warn_msg
+                        return local_data
+                    elif resp.status_code == 402:
+                        warn_msg = f"大模型账户余额不足 (HTTP 402)。已切换为本地高精切片引擎保底入库，请为您的 API 账户充值。"
+                        print(f"[KnowledgeStructurer] {warn_msg}")
+                        local_data["warning"] = warn_msg
+                        return local_data
+                    else:
+                        print(f"[KnowledgeStructurer] LLM API returned HTTP {resp.status_code}: {resp.text[:200]}")
+                except Exception as ex_call:
+                    print(f"[KnowledgeStructurer] LLM call exception: {ex_call}")
+
+        # If LLM successfully distilled data
+        if accumulated_qa or accumulated_facts:
+            # De-duplicate QA pairs
+            unique_qa = []
+            seen_q = set()
+            for qa in accumulated_qa:
+                q_text = qa.get("question", "").strip()
+                if q_text and q_text not in seen_q:
+                    seen_q.add(q_text)
+                    unique_qa.append(qa)
+
+            # De-duplicate Facts
+            unique_facts = []
+            seen_f = set()
+            for fc in accumulated_facts:
+                f_text = fc.get("content", "").strip()
+                if f_text and f_text not in seen_f:
+                    seen_f.add(f_text)
+                    unique_facts.append(fc)
+
+            # If document had many sections, also retain any local facts that weren't captured
+            for loc_f in local_data["fact_chunks"]:
+                if len(unique_facts) < 25 and loc_f["content"] not in seen_f:
+                    unique_facts.append(loc_f)
+                    seen_f.add(loc_f["content"])
+
+            print(f"[KnowledgeStructurer] ✅ Cloud AI ({model_name}) distilled '{final_title}': {len(unique_qa)} QAs, {len(unique_facts)} Facts")
+            return {
+                "title": final_title,
+                "category": final_category,
+                "summary": final_summary,
+                "qa_pairs": unique_qa,
+                "fact_chunks": unique_facts,
+                "mode": "ai_distilled",
+                "model": model_name
             }
 
-            url = f"{config.relay_base_url.rstrip('/')}/chat/completions"
-
-            # Use reasonable 15s timeout to prevent UI hanging
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(url, json=payload, headers=headers)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    reply_text = data["choices"][0]["message"]["content"].strip()
-                    ai_extracted = KnowledgeStructurer._extract_json(reply_text)
-                    if ai_extracted and isinstance(ai_extracted, dict):
-                        # Merge AI distilled QA & summary with local comprehensive chunks
-                        ai_title = ai_extracted.get("title") or local_data["title"]
-                        ai_cat = ai_extracted.get("category") or local_data["category"]
-                        ai_summary = ai_extracted.get("summary") or local_data["summary"]
-                        ai_qa = ai_extracted.get("qa_pairs") or []
-                        ai_facts = ai_extracted.get("fact_chunks") or []
-
-                        # Merge QA pairs
-                        merged_qa = list(ai_qa)
-                        for local_qa in local_data["qa_pairs"]:
-                            if not any(q.get("question") == local_qa["question"] for q in merged_qa):
-                                merged_qa.append(local_qa)
-
-                        # Merge Fact Chunks (Keep both AI distilled and local comprehensive chunks)
-                        merged_facts = list(ai_facts)
-                        for local_f in local_data["fact_chunks"]:
-                            if not any(f.get("content") == local_f["content"] for f in merged_facts):
-                                merged_facts.append(local_f)
-
-                        print(f"[KnowledgeStructurer] Successfully AI-enhanced document: '{ai_title}' ({len(merged_qa)} QA, {len(merged_facts)} Facts)")
-                        return {
-                            "title": ai_title,
-                            "category": ai_cat,
-                            "summary": ai_summary,
-                            "qa_pairs": merged_qa,
-                            "fact_chunks": merged_facts,
-                            "mode": "ai_enhanced"
-                        }
-                else:
-                    print(f"[KnowledgeStructurer] Notice: Cloud LLM returned HTTP {resp.status_code}, gracefully using local semantic chunker.")
-        except Exception as e:
-            print(f"[KnowledgeStructurer] Notice: Cloud LLM structuring skipped ({e}), seamlessly using local semantic chunker.")
-
-        # Always fallback to local structured data with 100% guarantee
+        # Fallback to local structured data
+        print("[KnowledgeStructurer] Cloud LLM extraction produced empty result, safely falling back to local semantic chunker.")
+        local_data["warning"] = f"云端大模型未能返回有效知识切片，已使用本地高精切片引擎为您完成入库。"
         return local_data
 
     @staticmethod
     def _extract_json(text: str) -> Optional[Dict[str, Any]]:
-        """Safely parses JSON from LLM markdown response."""
+        """
+        Ultra-resilient JSON parser:
+        1. Strips <think>...</think> reasoning blocks.
+        2. Strips markdown fences.
+        3. Cleans common JSON syntax issues (trailing commas, unescaped characters).
+        4. Auto-repairs truncated JSON objects.
+        5. Fallback regex extraction of QA pairs and fact chunks.
+        """
+        if not text:
+            return None
+
+        # 1. Strip reasoning blocks from models like DeepSeek-R1
+        cleaned = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+        # 2. Extract content from markdown block if present
+        md_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
+        if md_match:
+            candidate = md_match.group(1).strip()
+        else:
+            candidate = cleaned
+
+        # Try direct parse
         try:
-            return json.loads(text)
+            return json.loads(candidate)
         except Exception:
             pass
 
-        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-        if match:
+        # 3. Locate JSON boundaries between first { and last }
+        start_idx = candidate.find('{')
+        end_idx = candidate.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            sub_json = candidate[start_idx:end_idx + 1]
+            # Fix trailing commas
+            sub_json_fixed = re.sub(r',\s*([}\]])', r'\1', sub_json)
             try:
-                return json.loads(match.group(1))
+                return json.loads(sub_json_fixed)
             except Exception:
                 pass
+
+        # 4. Auto-repair truncated JSON (e.g. output cut off mid-way)
+        if start_idx != -1:
+            truncated = candidate[start_idx:]
+            # Remove trailing dangling characters
+            truncated = re.sub(r',\s*$', '', truncated)
+            # Close unclosed strings if dangling quote
+            quote_count = truncated.count('"') - truncated.count(r'\"')
+            if quote_count % 2 != 0:
+                truncated += '"'
+            # Close unclosed arrays and objects
+            open_braces = truncated.count('{') - truncated.count('}')
+            open_brackets = truncated.count('[') - truncated.count(']')
+            truncated += (']' * max(0, open_brackets)) + ('}' * max(0, open_braces))
+            try:
+                truncated_fixed = re.sub(r',\s*([}\]])', r'\1', truncated)
+                return json.loads(truncated_fixed)
+            except Exception:
+                pass
+
+        # 5. Regex rescue extraction: extract QA pairs and fact chunks individually
+        res_qa = []
+        qa_matches = re.finditer(
+            r'\{\s*"question"\s*:\s*"([^"]+)"\s*,\s*"answer"\s*:\s*"([^"]+)"',
+            candidate
+        )
+        for m in qa_matches:
+            q = m.group(1).strip()
+            a = m.group(2).strip()
+            res_qa.append({
+                "question": q,
+                "answer": a,
+                "keywords": KnowledgeStructurer.extract_keywords(f"{q} {a}", 4)
+            })
+
+        res_facts = []
+        fact_matches = re.finditer(
+            r'\{\s*"title"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"([^"]+)"',
+            candidate
+        )
+        for m in fact_matches:
+            res_facts.append({
+                "title": m.group(1).strip(),
+                "content": m.group(2).strip()
+            })
+
+        title_m = re.search(r'"title"\s*:\s*"([^"]+)"', candidate)
+        cat_m = re.search(r'"category"\s*:\s*"([^"]+)"', candidate)
+        sum_m = re.search(r'"summary"\s*:\s*"([^"]+)"', candidate)
+
+        if res_qa or res_facts or title_m:
+            return {
+                "title": title_m.group(1) if title_m else "知识文档",
+                "category": cat_m.group(1) if cat_m else "通用知识",
+                "summary": sum_m.group(1) if sum_m else "",
+                "qa_pairs": res_qa,
+                "fact_chunks": res_facts
+            }
+
         return None
