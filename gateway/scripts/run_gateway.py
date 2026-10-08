@@ -43,9 +43,11 @@ except Exception as e:
 # 5. Self-healing check for critical runtime dependencies
 try:
     import multipart
+    import pypdf
+    import docx
 except ImportError:
-    print("[*] 正在自动补全基础依赖 python-multipart...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "python-multipart", "aiofiles"],
+    print("[*] 正在自动补全基础文档与运行依赖 (python-multipart, pypdf, python-docx, aiofiles)...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "python-multipart", "pypdf", "python-docx", "aiofiles"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # 6. Open Web Console in browser after 2.5s

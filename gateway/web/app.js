@@ -496,8 +496,8 @@ async function uploadFile(file) {
   const detailText = document.getElementById('upload-status-detail');
 
   if (progressBox) progressBox.style.display = 'flex';
-  if (titleText) titleText.textContent = `正在智能梳理: ${file.name}...`;
-  if (detailText) detailText.textContent = "Gemini 3.8 Flash 正在解析文档、提炼核心 FAQ 问答与事实切片...";
+  if (titleText) titleText.textContent = `正在智能解析: ${file.name}...`;
+  if (detailText) detailText.textContent = "正在解析文档结构、提取高频 FAQ 问答与语义切片...";
 
   const formData = new FormData();
   formData.append('file', file);
@@ -510,8 +510,9 @@ async function uploadFile(file) {
     });
     const result = await res.json();
     if (res.ok) {
-      if (titleText) titleText.textContent = `🎉 梳理完成: 《${result.title}》`;
-      if (detailText) detailText.textContent = `成功提取 ${result.qa_count} 个标准 FAQ 问答对与 ${result.fact_count} 个独立事实切片！已归入【${result.zone_name}】`;
+      const modeDesc = result.mode === 'ai_enhanced' ? 'AI 智能增强' : '本地语义高精切片';
+      if (titleText) titleText.textContent = `🎉 入库完成: 《${result.title}》 (${modeDesc})`;
+      if (detailText) detailText.textContent = `已生成 ${result.qa_count} 个 FAQ 问答对与 ${result.fact_count} 个语义切片，并成功建立向量索引！归入【${result.zone_name}】`;
       setTimeout(() => {
         if (progressBox) progressBox.style.display = 'none';
       }, 4000);
@@ -519,7 +520,7 @@ async function uploadFile(file) {
       fetchZones();
       fetchStatus();
     } else {
-      alert("上传与梳理失败: " + (result.error || "未知错误"));
+      alert("上传失败: " + (result.error || "未知错误"));
       if (progressBox) progressBox.style.display = 'none';
     }
   } catch (err) {

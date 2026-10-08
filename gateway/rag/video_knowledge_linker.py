@@ -112,15 +112,19 @@ class VideoKnowledgeLinker:
 
         url = f"{config.relay_base_url.rstrip('/')}/chat/completions"
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code != 200:
-                raise RuntimeError(f"大模型解析请求失败 (HTTP {resp.status_code}): {resp.text}")
+        reply_text = ""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    reply_text = data["choices"][0]["message"]["content"].strip()
+                else:
+                    print(f"[VideoKnowledgeLinker] Notice: Cloud LLM returned HTTP {resp.status_code}, using local heuristic extraction.")
+        except Exception as ex:
+            print(f"[VideoKnowledgeLinker] Notice: Cloud LLM skipped ({ex}), using local heuristic extraction.")
 
-            data = resp.json()
-            reply_text = data["choices"][0]["message"]["content"].strip()
-
-        # 2. Extract JSON
+        # 2. Extract JSON (has built-in local heuristic fallback when reply_text is empty)
         extracted = VideoKnowledgeLinker._extract_json(reply_text, file_name, sample_text)
 
         final_title = extracted.get("title") or target_video.get("title") or file_name

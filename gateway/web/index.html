@@ -220,17 +220,17 @@
             <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
               <div class="upload-icon">📂</div>
               <div class="upload-title">点击选择文件，或直接拖拽文件到这里</div>
-              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf 格式 · 将自动存入当前知识区</div>
-              <div class="upload-tag">✨ 本地永久存储 · 原则上无容量限制 · Gemini 3.8 Flash 知识蒸馏</div>
-              <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf" onchange="handleFileSelected(event)">
+              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 将自动存入当前知识区</div>
+              <div class="upload-tag">✨ 本地永久存储 · 原则上无容量限制 · 双引擎智能切片与知识蒸馏</div>
+              <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf,.csv,.json" onchange="handleFileSelected(event)">
             </div>
 
             <!-- Upload & Structuring Progress -->
             <div id="upload-progress" class="upload-progress-box">
               <div class="spinner"></div>
               <div>
-                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在使用 AI 梳理知识库...</div>
-                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在由 Gemini 3.8 Flash 提取核心主题、生成标准 FAQ 问答对与事实切片...</div>
+                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在解析并录入知识库...</div>
+                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在分析文档结构、提取高频 FAQ 问答对与语义切片...</div>
               </div>
             </div>
           </div>

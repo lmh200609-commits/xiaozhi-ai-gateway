@@ -378,8 +378,12 @@ async def upload_knowledge_file(
         target_zone = zone_manager.get_zone(zone_id) or zone_manager.get_active_zone()
         zone_name = target_zone.get("name", "白城火车园区知识区")
 
-        print(f"[RAG Upload] Starting AI structuring for: {filename} in zone: {zone_name}...")
-        structured_data = await KnowledgeStructurer.structure_document(filename, raw_text)
+        print(f"[RAG Upload] Starting document structuring for: {filename} in zone: {zone_name}...")
+        try:
+            structured_data = await KnowledgeStructurer.structure_document(filename, raw_text)
+        except Exception as ex_struct:
+            print(f"[RAG Upload] Cloud structuring exception: {ex_struct}, falling back to local semantic chunker")
+            structured_data = KnowledgeStructurer.build_local_structured_data(filename, raw_text)
 
         doc_id = knowledge_store.add_structured_document(
             doc_data=structured_data,
@@ -398,11 +402,12 @@ async def upload_knowledge_file(
             "zone_id": target_zone["id"],
             "zone_name": zone_name,
             "qa_count": len(structured_data.get("qa_pairs", [])),
-            "fact_count": len(structured_data.get("fact_chunks", []))
+            "fact_count": len(structured_data.get("fact_chunks", [])),
+            "mode": structured_data.get("mode", "local_semantic")
         }
     except Exception as e:
         print(f"[RAG Upload] Error: {e}")
-        return JSONResponse(status_code=500, content={"error": f"文档智能梳理失败: {str(e)}"})
+        return JSONResponse(status_code=500, content={"error": f"文档处理失败: {str(e)}"})
 
 @app.post("/api/knowledge")
 async def add_knowledge(req: Request):

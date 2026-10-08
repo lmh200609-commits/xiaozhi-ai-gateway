@@ -690,6 +690,21 @@ class KnowledgeStore:
                 "entity_id": entity_id
             })
 
+        # Fallback if both qa_pairs and fact_chunks were empty
+        if not chunk_descriptors:
+            fallback_text = (raw_text or summary or title).strip()
+            if fallback_text:
+                texts_to_embed.append(f"{title}: {fallback_text}")
+                chunk_descriptors.append({
+                    "type": "fact",
+                    "title": title,
+                    "question": None,
+                    "content": fallback_text,
+                    "parent_content": summary or raw_text[:300],
+                    "keywords": [],
+                    "entity_id": entity_id
+                })
+
         # Batch embed all chunks locally using bge-small-zh-v1.5
         t0 = time.time()
         vectors = embedding_engine.embed_documents(texts_to_embed)
