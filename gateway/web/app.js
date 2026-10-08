@@ -1255,43 +1255,7 @@ async function sendSimulation() {
   }
 }
 
-// ================= System Settings & Presets =================
-const MODEL_PRESETS = {
-  deepseek: {
-    url: "https://api.deepseek.com/v1",
-    model: "deepseek-chat"
-  },
-  siliconflow: {
-    url: "https://api.siliconflow.cn/v1",
-    model: "deepseek-ai/DeepSeek-V3"
-  },
-  zhipu: {
-    url: "https://open.bigmodel.cn/api/paas/v4",
-    model: "glm-4-flash"
-  },
-  moonshot: {
-    url: "https://api.moonshot.cn/v1",
-    model: "moonshot-v1-8k"
-  },
-  openai: {
-    url: "https://api.openai.com/v1",
-    model: "gpt-4o-mini"
-  }
-};
-
-function applyModelPreset(name) {
-  const p = MODEL_PRESETS[name];
-  if (!p) return;
-  const rUrl = document.getElementById('cfg-relay-url');
-  const rMod = document.getElementById('cfg-model-name');
-  if (rUrl) rUrl.value = p.url;
-  if (rMod) rMod.value = p.model;
-  const rKey = document.getElementById('cfg-api-key');
-  if (rKey) {
-    if (!rKey.value) rKey.focus();
-  }
-}
-
+// ================= System Settings =================
 async function loadConfigInputs() {
   try {
     if (!currentConfig || !currentConfig.relay_base_url) {

@@ -89,24 +89,24 @@ flowchart TD
 
 ---
 
-## 四、 常见大模型服务商一键配置与预设
+## 四、 常见大模型服务商个体化手动配置参考
 
-网关管理平台（`http://localhost:8001`）系统配置页面内置了 **常用大模型一键快捷填入预设**，点击即可自动填入标准参数：
+在网关管理平台（`http://localhost:8001`）的【⚙️ 网关系统配置】页面中，直接手动填入您所使用的大模型地址与密钥即可：
 
-| 服务商 | 快捷预设名称 | Base URL | 默认模型名 | 申请与配置说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| **DeepSeek 官方** *(推荐)* | 🔵 DeepSeek 官方 | `https://api.deepseek.com/v1` | `deepseek-chat` | 前往 [DeepSeek 开放平台](https://platform.deepseek.com/) 申请 `sk-...` |
-| **SiliconFlow 硅基流动** | 🟣 SiliconFlow 硅基流动 | `https://api.siliconflow.cn/v1` | `deepseek-ai/DeepSeek-V3` | 提供高并发 DeepSeek 托管，前往 [SiliconFlow](https://cloud.siliconflow.cn/) |
-| **智谱 AI** | 🟡 智谱 GLM-4 | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` | 高性价比，前往 [智谱开放平台](https://open.bigmodel.cn/) |
-| **Moonshot 月之暗面** | 🌙 Moonshot 月之暗面 | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | 前往 [Kimi 开放平台](https://platform.moonshot.cn/) |
-| **OpenAI / 自建中转** | 🟢 OpenAI / 自建中转 | `https://api.openai.com/v1` | `gpt-4o-mini` | 支持任意自建 OneAPI / NewAPI 中转平台 |
+| 服务商 | Base URL (中转地址) | 推荐模型名 (Model) | 申请与配置说明 |
+| :--- | :--- | :--- | :--- |
+| **DeepSeek 官方** *(推荐)* | `https://api.deepseek.com/v1` | `deepseek-chat` | 前往 [DeepSeek 开放平台](https://platform.deepseek.com/) 申请 `sk-...` |
+| **SiliconFlow 硅基流动** | `https://api.siliconflow.cn/v1` | `deepseek-ai/DeepSeek-V3` | 提供高并发 DeepSeek 托管，前往 [SiliconFlow](https://cloud.siliconflow.cn/) |
+| **智谱 AI** | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` | 高性价比，前往 [智谱开放平台](https://open.bigmodel.cn/) |
+| **Moonshot 月之暗面** | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | 前往 [Kimi 开放平台](https://platform.moonshot.cn/) |
+| **OpenAI / 自建中转** | `https://api.openai.com/v1` | `gpt-4o-mini` | 支持任意自建 OneAPI / NewAPI 中转平台 |
 
-### 快速配置步骤：
-1. 双击桌面快捷方式或运行 `run_gateway.py` 启动网关。
-2. 浏览器打开 `http://localhost:8001`，点击左侧导航栏 **【⚙️ 网关系统配置】**。
-3. 点击 **【🔵 DeepSeek 官方】** 按钮，系统自动填入 Base URL 与模型名称。
-4. 在 **【大模型 API 密钥】** 输入框中粘贴您的有效 Key。
-5. 点击 **【💾 保存全局配置】** 即可实时生效！
+### 手动配置与生效步骤：
+1. 启动网关服务后，浏览器打开 `http://localhost:8001`，点击左侧导航栏 **【⚙️ 网关系统配置】**。
+2. 在 **【大模型中转地址】** 输入对应服务商的 Base URL（例如：`https://api.deepseek.com/v1`）。
+3. 在 **【大模型 API 密钥】** 输入框中粘贴您的有效 Key（如：`sk-...`）。
+4. 在 **【模型型号】** 输入对应模型标识（例如：`deepseek-chat`）。
+5. 点击 **【💾 保存全局配置】** 即可实时在语音对话、知识库 AI 解析蒸馏等全模块生效！
 
 ---
 
