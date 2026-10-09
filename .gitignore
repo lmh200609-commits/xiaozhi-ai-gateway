@@ -49,6 +49,8 @@ backup_xiaozhi_16MB.bin
 # --- 本地数据库与临时运行数据 ---
 gateway/data/*.db-shm
 gateway/data/*.db-wal
+gateway/data/documents/*
+!gateway/data/documents/.gitkeep
 *.log
 create_lnk_final.ps1
 

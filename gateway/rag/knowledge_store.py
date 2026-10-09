@@ -45,6 +45,8 @@ class KnowledgeStore:
                 category TEXT DEFAULT '通用',
                 file_name TEXT,
                 file_type TEXT,
+                file_size INTEGER DEFAULT 0,
+                file_path TEXT DEFAULT '',
                 summary TEXT,
                 raw_content TEXT,
                 zone_id TEXT DEFAULT 'baicheng_railway',
@@ -85,6 +87,10 @@ class KnowledgeStore:
             c.execute("ALTER TABLE documents ADD COLUMN zone_id TEXT DEFAULT 'baicheng_railway'")
         if "zone_name" not in cols_docs:
             c.execute("ALTER TABLE documents ADD COLUMN zone_name TEXT DEFAULT '中国·大安机车博览园知识区'")
+        if "file_size" not in cols_docs:
+            c.execute("ALTER TABLE documents ADD COLUMN file_size INTEGER DEFAULT 0")
+        if "file_path" not in cols_docs:
+            c.execute("ALTER TABLE documents ADD COLUMN file_path TEXT DEFAULT ''")
         c.execute("UPDATE documents SET zone_id = 'baicheng_railway', zone_name = '中国·大安机车博览园知识区' WHERE zone_id IS NULL OR zone_id = '' OR zone_name = '白城火车园区知识区'")
         conn.commit()
 
@@ -636,15 +642,22 @@ class KnowledgeStore:
         file_name: str = "",
         file_type: str = "custom",
         zone_id: str = "baicheng_railway",
-        zone_name: str = "中国·大安机车博览园知识区"
+        zone_name: str = "中国·大安机车博览园知识区",
+        doc_id: Optional[str] = None,
+        file_size: int = 0,
+        file_path: str = ""
     ) -> str:
-        doc_id = str(uuid.uuid4())
+        if not doc_id:
+            doc_id = str(uuid.uuid4())
         created_at = time.strftime("%Y-%m-%d %H:%M:%S")
 
         title = doc_data.get("title", file_name or "未命名知识文档")
         category = doc_data.get("category", "通用")
         summary = doc_data.get("summary", "")
         entity_id = doc_data.get("entity_id", "")
+
+        if file_size <= 0 and raw_text:
+            file_size = len(raw_text.encode("utf-8"))
 
         qa_pairs = doc_data.get("qa_pairs", [])
         fact_chunks = doc_data.get("fact_chunks", [])
@@ -718,16 +731,16 @@ class KnowledgeStore:
             if "content" in cols_docs:
                 c.execute(
                     """INSERT INTO documents 
-                       (id, title, category, content, file_name, file_type, summary, raw_content, zone_id, zone_name, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (doc_id, title, category, doc_content, file_name, file_type, summary, raw_text, zone_id, zone_name, created_at)
+                       (id, title, category, content, file_name, file_type, file_size, file_path, summary, raw_content, zone_id, zone_name, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (doc_id, title, category, doc_content, file_name, file_type, file_size, file_path, summary, raw_text, zone_id, zone_name, created_at)
                 )
             else:
                 c.execute(
                     """INSERT INTO documents 
-                       (id, title, category, file_name, file_type, summary, raw_content, zone_id, zone_name, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (doc_id, title, category, file_name, file_type, summary, raw_text, zone_id, zone_name, created_at)
+                       (id, title, category, file_name, file_type, file_size, file_path, summary, raw_content, zone_id, zone_name, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (doc_id, title, category, file_name, file_type, file_size, file_path, summary, raw_text, zone_id, zone_name, created_at)
                 )
 
             cols_chunks = [r[1] for r in c.execute("PRAGMA table_info(chunks)").fetchall()]
@@ -790,10 +803,12 @@ class KnowledgeStore:
         return self.add_structured_document(
             doc_data=doc_data,
             raw_text=content,
-            file_name=title,
+            file_name=f"{title}.txt",
             file_type="manual",
             zone_id=zone_id,
-            zone_name=zone_name
+            zone_name=zone_name,
+            file_size=len(content.encode("utf-8")),
+            file_path=""
         )
 
     def get_document_details(self, doc_id: str) -> Optional[Dict[str, Any]]:
@@ -803,6 +818,7 @@ class KnowledgeStore:
             if not doc_row:
                 return None
             doc = dict(doc_row)
+            doc_name = doc.get("file_name") or doc.get("title") or "未命名文档"
             chunk_rows = c.execute(
                 "SELECT id, chunk_type, title, question, content, parent_content, keywords_json, entity_id FROM chunks WHERE doc_id = ?",
                 (doc_id,)
@@ -810,6 +826,8 @@ class KnowledgeStore:
             chunks = []
             for r in chunk_rows:
                 cd = dict(r)
+                cd["source_file_name"] = doc_name
+                cd["doc_title"] = doc.get("title") or doc_name
                 if cd.get("keywords_json"):
                     try:
                         cd["keywords"] = json.loads(cd["keywords_json"])
@@ -817,13 +835,14 @@ class KnowledgeStore:
                         cd["keywords"] = []
                 chunks.append(cd)
             doc["chunks"] = chunks
+            doc["has_physical_file"] = bool(doc.get("file_path") and Path(doc["file_path"]).is_file())
             return doc
 
     def list_documents(self, zone_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self.get_conn() as conn:
             c = conn.cursor()
             query = """
-                SELECT d.id, d.title, d.category, d.file_name, d.file_type, d.summary, d.created_at,
+                SELECT d.id, d.title, d.category, d.file_name, d.file_type, d.file_size, d.file_path, d.summary, d.created_at,
                        d.zone_id, d.zone_name,
                        COUNT(c.id) as total_chunks,
                        SUM(CASE WHEN c.chunk_type = 'qa' THEN 1 ELSE 0 END) as qa_count,
@@ -837,17 +856,60 @@ class KnowledgeStore:
                 params.append(zone_id)
             query += " GROUP BY d.id ORDER BY d.created_at DESC"
             rows = c.execute(query, tuple(params)).fetchall()
-            return [dict(r) for r in rows]
+            res = []
+            for r in rows:
+                item = dict(r)
+                if not item.get("file_size"):
+                    item["file_size"] = 0
+                item["has_physical_file"] = bool(item.get("file_path") and Path(item["file_path"]).is_file())
+                res.append(item)
+            return res
 
-    def delete_document(self, doc_id: str):
+    def list_chunks(self, zone_id: Optional[str] = None, doc_id: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
         with self.get_conn() as conn:
             c = conn.cursor()
+            query = """
+                SELECT c.id, c.doc_id, c.chunk_type, c.title, c.question, c.content, c.parent_content, c.entity_id,
+                       d.title as doc_title, d.file_name as source_file_name, d.zone_id, d.zone_name
+                FROM chunks c
+                JOIN documents d ON c.doc_id = d.id
+            """
+            conditions = []
+            params = []
+            if zone_id and zone_id != "all":
+                conditions.append("d.zone_id = ?")
+                params.append(zone_id)
+            if doc_id:
+                conditions.append("c.doc_id = ?")
+                params.append(doc_id)
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += " ORDER BY d.created_at DESC, c.id ASC LIMIT ?"
+            params.append(limit)
+            rows = c.execute(query, tuple(params)).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_document(self, doc_id: str) -> bool:
+        with self.get_conn() as conn:
+            c = conn.cursor()
+            doc_row = c.execute("SELECT file_path FROM documents WHERE id = ?", (doc_id,)).fetchone()
+            if doc_row and doc_row["file_path"]:
+                try:
+                    p = Path(doc_row["file_path"])
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                        print(f"[RAG] Removed physical document file: {p}")
+                except Exception as ex:
+                    print(f"[RAG] Warning removing physical file: {ex}")
+
             chunk_rows = c.execute("SELECT id FROM chunks WHERE doc_id = ?", (doc_id,)).fetchall()
             for r in chunk_rows:
                 self.fts_engine.delete_chunk(r["id"], conn=conn)
             c.execute("DELETE FROM chunks WHERE doc_id = ?", (doc_id,))
             c.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             conn.commit()
+            print(f"[RAG] Cascade deleted document {doc_id} and {len(chunk_rows)} chunks from database and FTS5 index.")
+        return True
 
     def search(
         self,
@@ -896,7 +958,8 @@ class KnowledgeStore:
             if zone_id:
                 rows = c.execute(
                     """
-                    SELECT c.id, c.doc_id, c.chunk_type, c.title, c.question, c.content, c.parent_content, c.entity_id, c.embedding_blob, d.zone_id, d.zone_name
+                    SELECT c.id, c.doc_id, c.chunk_type, c.title, c.question, c.content, c.parent_content, c.entity_id, c.embedding_blob,
+                           d.zone_id, d.zone_name, d.file_name, d.file_size, d.file_path
                     FROM chunks c
                     JOIN documents d ON c.doc_id = d.id
                     WHERE c.embedding_blob IS NOT NULL AND d.zone_id = ?
@@ -906,7 +969,8 @@ class KnowledgeStore:
             else:
                 rows = c.execute(
                     """
-                    SELECT c.id, c.doc_id, c.chunk_type, c.title, c.question, c.content, c.parent_content, c.entity_id, c.embedding_blob, d.zone_id, d.zone_name
+                    SELECT c.id, c.doc_id, c.chunk_type, c.title, c.question, c.content, c.parent_content, c.entity_id, c.embedding_blob,
+                           d.zone_id, d.zone_name, d.file_name, d.file_size, d.file_path
                     FROM chunks c
                     JOIN documents d ON c.doc_id = d.id
                     WHERE c.embedding_blob IS NOT NULL
@@ -959,6 +1023,10 @@ class KnowledgeStore:
                 scored_candidates.append({
                     "id": cid,
                     "doc_id": row["doc_id"],
+                    "source_file_name": row["file_name"] or row["title"] or "未命名文档",
+                    "file_name": row["file_name"] or row["title"] or "未命名文档",
+                    "file_size": row["file_size"] or 0,
+                    "file_path": row["file_path"] or "",
                     "type": row["chunk_type"],
                     "title": row["title"],
                     "question": row["question"],

@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 import os
+import re
+import uuid
 import urllib.parse
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -346,18 +348,62 @@ async def delete_zone(zone_id: str):
         return {"status": "ok"}
     return JSONResponse(status_code=400, content={"error": "默认知识区不可删除或知识区不存在"})
 
-# ----------------- Knowledge Base (RAG) API -----------------
+# ----------------- Knowledge Base (RAG) & File Management API -----------------
+
+DOCUMENTS_DIR = Path(__file__).resolve().parent / "data" / "documents"
+DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.get("/api/knowledge")
+@app.get("/api/documents")
 async def get_knowledge(zone_id: Optional[str] = None):
     return {"documents": knowledge_store.list_documents(zone_id=zone_id)}
 
+@app.get("/api/knowledge/chunks")
+@app.get("/api/documents/chunks")
+async def get_knowledge_chunks(
+    zone_id: Optional[str] = None,
+    doc_id: Optional[str] = None,
+    limit: int = 200
+):
+    chunks = knowledge_store.list_chunks(zone_id=zone_id, doc_id=doc_id, limit=limit)
+    return {"status": "ok", "chunks": chunks, "count": len(chunks)}
+
 @app.get("/api/knowledge/{doc_id}")
+@app.get("/api/documents/{doc_id}")
 async def get_knowledge_doc(doc_id: str):
     doc = knowledge_store.get_document_details(doc_id)
     if not doc:
         return JSONResponse(status_code=404, content={"error": "文档不存在"})
     return {"document": doc}
+
+@app.get("/api/documents/{doc_id}/download")
+@app.get("/api/knowledge/{doc_id}/download")
+async def download_knowledge_file(doc_id: str):
+    doc = knowledge_store.get_document_details(doc_id)
+    if not doc:
+        return JSONResponse(status_code=404, content={"error": "文档不存在"})
+
+    file_path = doc.get("file_path")
+    filename = doc.get("file_name") or f"{doc.get('title', 'knowledge_doc')}.txt"
+
+    # If physical file exists on disk, send it directly as attachment
+    if file_path and Path(file_path).is_file():
+        p = Path(file_path)
+        encoded_name = urllib.parse.quote(filename.encode('utf-8'))
+        headers = {
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"
+        }
+        return FileResponse(path=str(p), filename=filename, headers=headers)
+
+    # Fallback for manual or preset document: dynamically stream as markdown file
+    raw_content = doc.get("raw_content") or doc.get("summary") or doc.get("title", "")
+    md_filename = f"{doc.get('title', 'document')}.md"
+    encoded_name = urllib.parse.quote(md_filename.encode('utf-8'))
+    return Response(
+        content=raw_content.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"}
+    )
 
 @app.post("/api/knowledge/upload")
 async def upload_knowledge_file(
@@ -378,6 +424,19 @@ async def upload_knowledge_file(
         target_zone = (zone_manager.get_zone(zone_id) if zone_id else None) or zone_manager.get_active_zone()
         zone_name = target_zone.get("name", "默认通用知识区")
 
+        # Save physical archive file safely
+        zone_folder = DOCUMENTS_DIR / target_zone["id"]
+        zone_folder.mkdir(parents=True, exist_ok=True)
+
+        doc_id = str(uuid.uuid4())
+        ext = Path(filename).suffix
+        safe_stem = re.sub(r'[\\/*?:"<>|]', "_", Path(filename).stem)[:64]
+        safe_file_name = f"{doc_id}_{safe_stem}{ext}"
+        saved_file_path = zone_folder / safe_file_name
+        saved_file_path.write_bytes(content_bytes)
+        file_size = len(content_bytes)
+
+        print(f"[RAG Upload] Saved physical archive: {saved_file_path} ({file_size} bytes)")
         print(f"[RAG Upload] Starting document structuring for: {filename} in zone: {zone_name}...")
         try:
             structured_data = await KnowledgeStructurer.structure_document(filename, raw_text)
@@ -392,12 +451,19 @@ async def upload_knowledge_file(
             file_name=filename,
             file_type=parsed["file_type"],
             zone_id=target_zone["id"],
-            zone_name=zone_name
+            zone_name=zone_name,
+            doc_id=doc_id,
+            file_size=file_size,
+            file_path=str(saved_file_path)
         )
         return {
             "status": "ok",
             "doc_id": doc_id,
             "title": structured_data.get("title", filename),
+            "file_name": filename,
+            "file_size": file_size,
+            "has_physical_file": True,
+            "download_url": f"/api/documents/{doc_id}/download",
             "category": structured_data.get("category", "通用"),
             "summary": structured_data.get("summary", ""),
             "zone_id": target_zone["id"],
@@ -433,6 +499,7 @@ async def add_knowledge(req: Request):
     return {"status": "ok", "doc_id": doc_id}
 
 @app.delete("/api/knowledge/{doc_id}")
+@app.delete("/api/documents/{doc_id}")
 async def delete_knowledge(doc_id: str):
     knowledge_store.delete_document(doc_id)
     return {"status": "ok"}
@@ -442,7 +509,7 @@ async def search_knowledge(req: Request):
     data = await req.json()
     query = data.get("query", "").strip()
     top_k = int(data.get("top_k", 3))
-    min_score = float(data.get("min_score", 0.3))
+    min_score = float(data.get("min_score", 0.01))
     t0 = time.time()
     results = knowledge_store.search(query, top_k=top_k, min_score=min_score)
     cost_ms = (time.time() - t0) * 1000.0

@@ -213,15 +213,15 @@
           <!-- Intelligent Upload Box -->
           <div class="card" style="border: 2px dashed #bfdbfe; background: #fafdff;">
             <div class="card-header">
-              <h2>📤 智能知识文档导入 (支持 Word / Markdown / PDF / 文本)</h2>
-              <span class="stat-label" id="upload-model-badge">✨ 全局 AI 大模型自动蒸馏 · 提炼高频 FAQ 问答与事实切片</span>
+              <h2>📤 智能知识文档导入与原件档案仓 (Word / Markdown / PDF / 文本)</h2>
+              <span class="stat-label" id="upload-model-badge">✨ 物理原件持久化归档 · AI 自动蒸馏切片 · 切片全链路溯源</span>
             </div>
             
             <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
               <div class="upload-icon">📂</div>
-              <div class="upload-title">点击选择文件，或直接拖拽文件到这里</div>
-              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 自动存入当前知识区</div>
-              <div class="upload-tag" id="upload-engine-tag">✨ 全局大模型智能解析 (DeepSeek / OpenAI 兼容) · 提炼高频 FAQ 问答与核心知识切片</div>
+              <div class="upload-title">点击选择文件，或直接拖拽文件到这里归档入库</div>
+              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 原始物理文件将持久化保存</div>
+              <div class="upload-tag" id="upload-engine-tag">✨ 文件保存入库并保留原件 · AI 智能蒸馏高频 FAQ 与核心切片 · 随时下载原件与级联删除</div>
               <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf,.csv,.json" onchange="handleFileSelected(event)">
             </div>
 
@@ -229,36 +229,87 @@
             <div id="upload-progress" class="upload-progress-box">
               <div class="spinner"></div>
               <div>
-                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在解析并录入知识库...</div>
-                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在分析文档结构、提取高频 FAQ 问答对与语义切片...</div>
+                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在持久化归档并解析入库...</div>
+                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在写入物理档案、分析文档结构、提取高频 FAQ 问答与语义切片...</div>
               </div>
             </div>
           </div>
 
-          <!-- Search Tester -->
-          <div class="search-tester">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-              <h3 style="font-size:14px; font-weight:700; color:#0284c7;">🔍 知识库检索演练场 (Dual-Track BM25 极速测试)</h3>
-              <span style="font-size:12px; color:#0369a1;">无需对板子说话，在此验证用户口语问题能否高分命中</span>
+          <!-- Knowledge Asset View Switcher -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+            <div class="knowledge-view-bar" style="display:flex; gap:8px;">
+              <button class="btn btn-sm btn-outline active" id="btn-view-files" onclick="switchDocViewMode('files')">
+                📁 原始文件档案仓 (<span id="view-files-count">0</span>)
+              </button>
+              <button class="btn btn-sm btn-outline" id="btn-view-chunks" onclick="switchDocViewMode('chunks')">
+                🧩 知识切片与溯源总览 (<span id="view-chunks-count">0</span>)
+              </button>
+              <button class="btn btn-sm btn-outline" id="btn-view-tester" onclick="switchDocViewMode('tester')">
+                🔍 检索演练与溯源验证
+              </button>
             </div>
-            <div class="search-input-group">
-              <input type="text" id="rag-query-input" placeholder="输入口语测试问题，如：毛泽东号机车在哪个展厅？" onkeydown="if(event.key==='Enter') testSearchKnowledge()">
-              <button class="btn btn-primary" onclick="testSearchKnowledge()">🔍 检索匹配</button>
+            <div style="font-size:12px; color:#64748b;">
+              💡 提示：上传的文件永久保存在服务器，支持原件无损下载与全链路级联删除
             </div>
-            <div id="search-results-box" style="display:none;"></div>
           </div>
 
-          <!-- Documents List -->
-          <div class="card">
-            <div class="card-header">
-              <h2>📚 当前知识区文档清单 (<span id="knowledge-total-count">0</span>)</h2>
-              <button class="btn btn-primary btn-sm" onclick="openAddDocModal()">+ 手动快速录入</button>
-            </div>
-            <div id="docs-container" class="docs-list">
-              <div class="empty-state">
-                <div class="empty-icon">📖</div>
-                <p>当前知识区暂无文档，请点击上方拖拽上传 Word 或 Markdown 文档</p>
+          <!-- VIEW 1: 📁 原始文件档案仓 -->
+          <div id="sec-view-files">
+            <div class="card">
+              <div class="card-header">
+                <h2>📁 知识区归档文件资产清单 (<span id="knowledge-total-count">0</span> 份文档档案)</h2>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-outline btn-sm" onclick="fetchKnowledge()">🔄 刷新清单</button>
+                  <button class="btn btn-primary btn-sm" onclick="openAddDocModal()">+ 手动快速录入</button>
+                </div>
               </div>
+              <div id="docs-container" class="docs-list">
+                <div class="empty-state">
+                  <div class="empty-icon">📖</div>
+                  <p>当前知识区暂无文档档案，请点击上方拖拽上传 Word、Markdown、PDF 或文本文件</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VIEW 2: 🧩 知识切片与溯源总览 -->
+          <div id="sec-view-chunks" style="display:none;">
+            <div class="card">
+              <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+                <h2>🧩 知识切片全貌与来源溯源 (<span id="all-chunks-count">0</span> 块)</h2>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <select id="chunk-filter-doc" onchange="filterChunksView()" class="form-input" style="padding:4px 10px; font-size:12px; border-radius:6px;">
+                    <option value="all">📁 全部来源文件</option>
+                  </select>
+                  <select id="chunk-filter-type" onchange="filterChunksView()" class="form-input" style="padding:4px 10px; font-size:12px; border-radius:6px;">
+                    <option value="all">🧩 全部切片类型</option>
+                    <option value="qa">🧩 仅 FAQ 问答对</option>
+                    <option value="fact">📄 仅核心事实切片</option>
+                  </select>
+                  <input type="text" id="chunk-filter-kw" placeholder="搜索切片内容关键字..." oninput="filterChunksView()" class="form-input" style="padding:4px 10px; font-size:12px; border-radius:6px; width:180px;">
+                </div>
+              </div>
+              <div id="chunks-container" class="docs-list">
+                <div class="empty-state">
+                  <div class="empty-icon">🧩</div>
+                  <p>正在载入切片溯源数据...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- VIEW 3: 🔍 检索演练与溯源验证 -->
+          <div id="sec-view-tester" style="display:none;">
+            <div class="search-tester">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="font-size:14px; font-weight:700; color:#0284c7;">🔍 知识库检索演练与文件溯源 (Dual-Track BM25 极速测试)</h3>
+                <span style="font-size:12px; color:#0369a1;">无需对硬件说话，在此实时验证口语问题命中的知识切片及归属来源文件</span>
+              </div>
+              <div class="search-input-group">
+                <input type="text" id="rag-query-input" placeholder="输入口语测试问题，如：毛泽东号机车在哪个展厅？" onkeydown="if(event.key==='Enter') testSearchKnowledge()">
+                <button class="btn btn-primary" onclick="testSearchKnowledge()">🔍 检索匹配</button>
+              </div>
+              <div id="search-results-box" style="display:none;"></div>
             </div>
           </div>
         </div>
