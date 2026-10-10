@@ -121,9 +121,50 @@ def test_simulate_exact_mode_and_skill():
         assert "阶段 2 - 【温和探寻诱因与困扰】" in captured_calls[-1]["system_prompt"]
         print("  ✅ [PASS] Test C2: Psychologist advance_stage smoothly stepped to Stage 2.")
 
+        # D. Test [NEXT_STAGE] tag auto-transition
+        async def mock_stream_chat_auto_advance(self, user_text, device_tools=None, system_prompt="", temperature=0.7):
+            yield "我完全理解你的处境，那么能多跟我说说压力最大的具体事情吗？[NEXT_STAGE]", None, {"ttft_ms": 10.0}
+
+        with patch("gateway.llm.relay_client.RelayLLMClient.stream_chat", mock_stream_chat_auto_advance):
+            res_auto = client.post("/api/chat/simulate", json={
+                "text": "心语老师，我真的快撑不住了",
+                "role_id": "psychologist",
+                "stage_id": 1,
+                "session_id": "auto_adv_session"
+            })
+            assert res_auto.status_code == 200
+            data_auto = res_auto.json()
+            assert "[NEXT_STAGE]" not in data_auto["assistant_reply"], "Tag [NEXT_STAGE] must be stripped from response!"
+            assert data_auto["skill_info"]["auto_advanced"] is True, "Must flag auto_advanced as True"
+            assert data_auto["skill_info"]["current_stage_id"] == 2, "Must automatically step to Stage 2"
+            print("  ✅ [PASS] Test D: [NEXT_STAGE] tag stripped and stage automatically advanced.")
+
     # Clean up test document
     knowledge_store.delete_document(doc_id)
     print("  ✅ [PASS] Test cleanup: removed temporary document.")
+
+    # E. Test Manual Document Physical Archive & Lossless Download
+    res_man = client.post("/api/knowledge", json={
+        "title": "手动录入高校测试章程",
+        "category": "招生政策",
+        "content": "第一条：本章程适用于高校全日制普通本科招生工作。\n\n第二条：学校招生工作遵循公平竞争、公正选拔的原则。",
+        "zone_id": "default_zone"
+    })
+    assert res_man.status_code == 200
+    man_doc_id = res_man.json()["doc_id"]
+
+    # Verify download endpoint
+    res_dl = client.get(f"/api/documents/{man_doc_id}/download")
+    assert res_dl.status_code == 200, f"Download manual doc failed: {res_dl.status_code}"
+    assert "本章程适用于高校全日制普通本科招生工作" in res_dl.text
+    print("  ✅ [PASS] Test E1: Manual document has real physical archive and downloads accurately.")
+
+    # Cascade delete
+    res_del = client.delete(f"/api/documents/{man_doc_id}")
+    assert res_del.status_code == 200
+    res_dl_after = client.get(f"/api/documents/{man_doc_id}/download")
+    assert res_dl_after.status_code == 404
+    print("  ✅ [PASS] Test E2: Manual document cascade deleted from disk and database.")
 
     print("\n" + "=" * 60)
     print("🎉 ALL SIMULATE E2E TESTS PASSED 100%!")

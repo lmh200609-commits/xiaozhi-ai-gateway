@@ -1740,6 +1740,22 @@ function onSimRoleChanged() {
 
   // Update simulator Skill Banner
   refreshSimSkillBanner(role);
+
+  // Set initial welcome greeting for the role in chat simulator
+  const chatView = document.getElementById('sim-chat-view');
+  if (chatView) {
+    let welcomeMsg = `你好！我是你的小智 AI 语音助手。有什么问题我可以为你解答？`;
+    if (role.id === 'major_advisor') {
+      welcomeMsg = `🎓 您好！我是高校官方专业建设与招生顾问。已加载【四阶段高校招生与专业咨询SOP】与【严格原文复述模式】。请问您想咨询了解哪个学科专业方向？`;
+    } else if (role.id === 'psychologist') {
+      welcomeMsg = `🌱 你好，我是心语老师。在这里你可以完全放松，无论生活中有怎样的困扰与压力，我都会一直陪伴并温和倾听你。今天感觉怎么样？`;
+    } else if (role.id === 'railway_guide') {
+      welcomeMsg = `🚂 您好！我是中国·大安机车博览园智慧导览员小铁。欢迎来到大安机车博览园！请问想了解哪台功勋机车展项？`;
+    } else if (role.description) {
+      welcomeMsg = `${role.emoji || '🤖'} 你好！我是${escapeHtml(role.name)}。${escapeHtml(role.description)}`;
+    }
+    chatView.innerHTML = `<div class="sim-msg-ai">${welcomeMsg}</div>`;
+  }
 }
 
 function refreshSimSkillBanner(role, activeStageId = 1) {
@@ -1856,6 +1872,15 @@ async function sendSimulation() {
     });
     const data = await res.json();
 
+    // Sync banner stage if backend auto-advanced
+    if (data.skill_info && data.skill_info.enabled) {
+      if (data.skill_info.current_stage_id !== currentSimStageId) {
+        currentSimStageId = data.skill_info.current_stage_id;
+        const role = allRoles.find(r => r.id === selectedRoleId);
+        if (role) refreshSimSkillBanner(role, currentSimStageId);
+      }
+    }
+
     // RAG Tag
     let ragInfo = '';
     const isExact = (data.rag_mode === 'exact');
@@ -1875,8 +1900,11 @@ async function sendSimulation() {
     // Skill Tag if present
     let skillBadgeHtml = '';
     if (data.skill_info && data.skill_info.enabled) {
+      const autoAdvTag = data.skill_info.auto_advanced
+        ? `<span style="margin-left:6px; font-weight:normal; color:#059669; background:#dcfce7; padding:1px 6px; border-radius:4px; font-size:11px;">✨ SOP条件满足已自动流转</span>`
+        : '';
       skillBadgeHtml = `<div style="font-size:12px; color:#4338ca; background:#e0e7ff; padding:5px 8px; border-radius:6px; margin-top:6px; display:inline-flex; align-items:center; gap:6px;">
-        🧭 <strong>SOP流程 [阶段 ${data.skill_info.current_stage_id} · ${escapeHtml(data.skill_info.current_stage_name)}]</strong>: ${escapeHtml(data.skill_info.current_stage_goal || '')}
+        🧭 <strong>SOP流程 [阶段 ${data.skill_info.current_stage_id} · ${escapeHtml(data.skill_info.current_stage_name)}]</strong>: ${escapeHtml(data.skill_info.current_stage_goal || '')}${autoAdvTag}
       </div>`;
     }
 

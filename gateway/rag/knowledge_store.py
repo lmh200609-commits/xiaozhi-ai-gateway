@@ -12,6 +12,7 @@ import sqlite3
 import json
 import time
 import uuid
+import re
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -21,6 +22,7 @@ from gateway.rag.embedding import embedding_engine
 from gateway.rag.entity_graph import entity_graph, RailwayEntity
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.db"
+DATA_DIR = DB_PATH.parent
 
 class KnowledgeStore:
     def __init__(self):
@@ -800,6 +802,22 @@ class KnowledgeStore:
             "fact_chunks": fact_chunks,
             "qa_pairs": []
         }
+
+        # Save physical archive file for manual entry so it can be losslessly downloaded & managed
+        doc_dir = DATA_DIR / "documents" / zone_id
+        doc_dir.mkdir(parents=True, exist_ok=True)
+        doc_id = str(uuid.uuid4())
+        safe_stem = re.sub(r'[\\/*?:"<>|]', "_", title)[:64]
+        phys_filename = f"{doc_id}_{safe_stem}.txt"
+        phys_path = doc_dir / phys_filename
+        saved_file_path = ""
+        try:
+            with open(phys_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            saved_file_path = str(phys_path)
+        except Exception as e:
+            print(f"[RAG] Failed to save manual doc physical archive: {e}")
+
         return self.add_structured_document(
             doc_data=doc_data,
             raw_text=content,
@@ -807,8 +825,9 @@ class KnowledgeStore:
             file_type="manual",
             zone_id=zone_id,
             zone_name=zone_name,
+            doc_id=doc_id,
             file_size=len(content.encode("utf-8")),
-            file_path=""
+            file_path=saved_file_path
         )
 
     def get_document_details(self, doc_id: str) -> Optional[Dict[str, Any]]:

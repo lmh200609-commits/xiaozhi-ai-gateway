@@ -13,8 +13,10 @@ def clean_speech_text(text: str) -> str:
     """
     if not text:
         return ""
+    # Strip internal stage transition markers (e.g. [NEXT_STAGE], [STAGE:2]) so TTS never pronounces them
+    s = re.sub(r'\[(NEXT_STAGE|STAGE:\d+)\]', '', text, flags=re.IGNORECASE)
     # 1. Strip code blocks / backticks
-    s = re.sub(r'`+', '', text)
+    s = re.sub(r'`+', '', s)
     # 2. Strip asterisks (markdown bold/italic, e.g. **text** -> text, *text* -> text)
     s = re.sub(r'\*+', '', s)
     # 3. Strip underscores (markdown bold/italic)

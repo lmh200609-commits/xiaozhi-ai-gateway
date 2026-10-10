@@ -738,7 +738,7 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage:
                 f"4. 绝对严禁添加任何开场白、客套寒暄、自我介绍（例如：'好的'、'根据官方资料'、'为您介绍如下'等）！\n"
                 f"5. 绝对严禁添加任何结尾客套话（例如：'希望对您有所帮助'、'如有疑问欢迎咨询'等）！\n"
                 f"6. 绝对严禁利用你的外部预训练知识自主发挥、猜测或联网查找！\n"
-                f"7. 你的唯一任务：将下方检索到的知识库档案原文一字不改、原原本本地直接输出！严禁输出任何Markdown星号(*或**)。\n"
+                f"7. 严格输出格式：直接输出资料中的正文文字，切勿输出'【官方知识库权威档案记录】'等系统前缀标号！严禁输出任何Markdown星号(*或**)。\n"
                 f"=======================================================\n\n"
                 f"【官方知识库权威档案内容】：\n{docs_text}\n"
             )
@@ -835,6 +835,7 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage:
                 f"【SOP执行铁律】：\n"
                 f"1. 你当前轮次的所有对话沟通、提问或解说，必须严格遵循【当前执行阶段】的目标与指令进行！\n"
                 f"2. 严禁超前抢答后续阶段的内容，保持循序渐进的专业引导节奏。\n"
+                f"3. 阶段流转指示：当您在对话中确认本阶段的核心目标与流转判定条件已达成、并向用户发出了承上启下的过渡语句时，请在回答正文最后附带标记 [NEXT_STAGE]（该标记系统会自动隐蔽处理，语音不会读出，用来通知系统将流程推入下一阶段）。若本阶段交流尚未充分或仍需进一步引导，切勿附带该标记。\n"
                 f"=======================================================\n"
             )
             effective_prompt += skill_prompt
@@ -1016,7 +1017,30 @@ async def chat_simulate(req: Request):
                 assistant_reply = tool_result.get("message", f"已成功执行操作: {tool_name}")
 
     total_ms = (time.time() - t_start) * 1000.0
+
+    # Check if LLM signaled completion of current stage via [NEXT_STAGE]
+    has_next_tag = bool(re.search(r'\[NEXT_STAGE\]', assistant_reply, re.IGNORECASE))
+    assistant_reply = re.sub(r'\[NEXT_STAGE\]', '', assistant_reply, flags=re.IGNORECASE).strip()
     assistant_reply = clean_speech_text(assistant_reply)
+
+    if has_next_tag and current_stage and stages:
+        curr_idx = -1
+        for idx, s in enumerate(stages):
+            if s.get("stage_id") == current_stage.get("stage_id"):
+                curr_idx = idx
+                break
+        if curr_idx != -1 and curr_idx + 1 < len(stages):
+            current_stage = stages[curr_idx + 1]
+            session_skill_tracker[session_id] = {
+                "role_id": role.get("id"),
+                "stage_id": current_stage.get("stage_id"),
+                "updated_at": time.time()
+            }
+            # Recalculate next_stage_id
+            if curr_idx + 2 < len(stages):
+                next_stage_id = stages[curr_idx + 2].get("stage_id")
+            else:
+                next_stage_id = None
 
     await broadcast_kiosk_event({
         "type": "ai_done",
@@ -1051,7 +1075,8 @@ async def chat_simulate(req: Request):
             "current_stage_name": current_stage.get("name"),
             "current_stage_goal": current_stage.get("goal"),
             "stages": stages,
-            "next_stage_id": next_stage_id
+            "next_stage_id": next_stage_id,
+            "auto_advanced": has_next_tag
         }
 
     return {
@@ -1601,6 +1626,28 @@ async def websocket_endpoint(websocket: WebSocket):
                             await asyncio.sleep(0.052)
 
             total_time_ms = (time.time() - t_start) * 1000.0
+
+            # Check if LLM signaled completion of current stage via [NEXT_STAGE]
+            has_next_tag = bool(re.search(r'\[NEXT_STAGE\]', full_assistant_reply, re.IGNORECASE))
+            full_assistant_reply = re.sub(r'\[NEXT_STAGE\]', '', full_assistant_reply, flags=re.IGNORECASE).strip()
+
+            skill_obj = active_role.get("skill")
+            if has_next_tag and skill_obj and skill_obj.get("enabled"):
+                stages = skill_obj.get("stages", [])
+                if device_stage and stages:
+                    curr_idx = -1
+                    for idx, s in enumerate(stages):
+                        if s.get("stage_id") == device_stage.get("stage_id"):
+                            curr_idx = idx
+                            break
+                    if curr_idx != -1 and curr_idx + 1 < len(stages):
+                        next_stage_obj = stages[curr_idx + 1]
+                        session_skill_tracker[device_mac] = {
+                            "role_id": active_role.get("id"),
+                            "stage_id": next_stage_obj.get("stage_id"),
+                            "updated_at": time.time()
+                        }
+                        print(f"[WS Hardware Skill] Advanced device {device_mac} to Stage {next_stage_obj.get('stage_id')} ({next_stage_obj.get('name')})")
 
             # Synchronize spoken reply into LLM history for multi-turn dialogue
             if full_assistant_reply:
