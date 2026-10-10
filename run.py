@@ -27,7 +27,10 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         pass
 
 # 2. 定位项目绝对根目录，并优先加入 sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    PROJECT_ROOT = Path(sys.executable).resolve().parent
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parent
 os.chdir(PROJECT_ROOT)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -50,6 +53,8 @@ def print_banner(host: str, port: int):
 
 def check_and_heal_dependencies():
     """轻量自愈检测，若缺关键包自动快速补齐，避免新手因依赖缺失无法启动"""
+    if getattr(sys, "frozen", False):
+        return
     missing = []
     checks = [
         ("uvicorn", "uvicorn"),
@@ -133,6 +138,16 @@ def main():
     # 4. Wi-Fi IP 与固件 NVS 同步
     sync_network_config()
 
+    # 4.5 离线语音识别模型检测与补全 (ModelScope 极速通道)
+    try:
+        from gateway.scripts.download_models import check_and_download_models
+        model_path = PROJECT_ROOT / "models" / "sense-voice" / "model.int8.onnx"
+        if not model_path.exists():
+            print("[*] 首次运行检测：正在检查并准备 SenseVoice 离线语音识别模型...")
+            check_and_download_models()
+    except Exception as e:
+        print(f"[*] 离线语音模型检查跳过: {e}")
+
     # 5. 延时调起浏览器
     if not args.no_browser:
         open_browser_delayed(f"http://localhost:{args.port}", delay=2.5)
@@ -144,7 +159,11 @@ def main():
 
     try:
         import uvicorn
-        uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
+        if getattr(sys, "frozen", False):
+            from gateway.main import app
+            uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        else:
+            uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
     except KeyboardInterrupt:
         print("\n[*] 网关服务已收到中断信号，正在退出...")
     except Exception as e:

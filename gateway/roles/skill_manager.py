@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+from gateway.config import DATA_DIR
 SKILLS_DIR = DATA_DIR / "skills"
 
 # 内置标准预设 Skill 模板 (符合真实 Agent SKILL.md 规范)
@@ -41,10 +41,10 @@ PRESET_SKILLS = [
             },
             {
                 "stage_id": 2,
-                "name": "专业建设权威详解 (严格原文)",
-                "goal": "依据学校知识库权威资料，一字不改完整介绍该专业的师资、学科实力与培养方案",
-                "instruction": "严格依据知识库内容，完整准确地输出专业建设文字，严禁删改或自主发挥！",
-                "exit_condition": "完整输出官方专业建设介绍后过渡。"
+                "name": "专业建设与特色详解",
+                "goal": "结合权威资料与培养方案，详述专业的师资力量、优势方向与核心特色",
+                "instruction": "详实准确地介绍该专业的建设亮点、实验条件与师资，解答专业相关咨询。",
+                "exit_condition": "详尽解答专业特色与建设情况后过渡。"
             },
             {
                 "stage_id": 3,
@@ -439,6 +439,16 @@ class SkillManager:
         # 按名称排序
         results.sort(key=lambda x: x["name"])
         return results
+
+    def get_skill(self, skill_id_or_filename: str) -> Optional[Dict[str, Any]]:
+        """根据 id 或文件名查询并返回完整的 Skill 字典结构"""
+        for sk in self.list_skills():
+            if sk.get("id") == skill_id_or_filename or sk.get("filename") == skill_id_or_filename:
+                return sk
+        for ps in PRESET_SKILLS:
+            if ps.get("id") == skill_id_or_filename or ps.get("filename") == skill_id_or_filename:
+                return dict(ps)
+        return None
 
     def get_skill_content(self, filename: str) -> Optional[str]:
         """获取特定 Skill 文件的原始内容"""

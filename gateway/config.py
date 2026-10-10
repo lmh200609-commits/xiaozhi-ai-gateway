@@ -1,10 +1,20 @@
+import sys
 import os
 import json
 from pathlib import Path
 from pydantic import BaseModel
 
-CONFIG_FILE = Path(__file__).parent / "config.json"
-BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATA_DIR = BASE_DIR / "gateway" / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+CONFIG_FILE = BASE_DIR / "gateway" / "config.json"
+if not CONFIG_FILE.exists() and (BASE_DIR / "config.json").exists():
+    CONFIG_FILE = BASE_DIR / "config.json"
 
 class GatewayConfig(BaseModel):
     # Relay LLM settings (OpenAI-compatible)

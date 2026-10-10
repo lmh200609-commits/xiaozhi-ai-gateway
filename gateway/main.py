@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from gateway.config import config
+from gateway.config import config, BASE_DIR, DATA_DIR
 from gateway.audio.opus_codec import OpusDecoderWrapper
 from gateway.audio.vad import EnergyVAD
 from gateway.asr.sense_voice import get_asr_engine
@@ -173,7 +173,9 @@ async def kiosk_ws_endpoint(websocket: WebSocket):
 
 @app.get("/kiosk")
 async def get_kiosk():
-    kiosk_path = Path(__file__).parent / "web" / "kiosk.html"
+    kiosk_path = BASE_DIR / "gateway" / "web" / "kiosk.html"
+    if not kiosk_path.exists():
+        kiosk_path = Path(__file__).parent / "web" / "kiosk.html"
     if kiosk_path.exists():
         return FileResponse(str(kiosk_path), media_type="text/html; charset=utf-8")
     return JSONResponse(status_code=404, content={"error": "kiosk.html not found"})
@@ -522,7 +524,7 @@ async def delete_zone(zone_id: str):
 
 # ----------------- Knowledge Base (RAG) & File Management API -----------------
 
-DOCUMENTS_DIR = Path(__file__).resolve().parent / "data" / "documents"
+DOCUMENTS_DIR = DATA_DIR / "documents"
 DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.get("/api/knowledge")
@@ -830,9 +832,29 @@ async def delete_video(video_id: str, delete_file: bool = True):
 
 session_skill_tracker = {}
 
+def resolve_role_skill(role: Optional[dict]) -> Optional[dict]:
+    if not role:
+        return None
+    raw = role.get("skill")
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        d = dict(raw)
+        if "enabled" not in d:
+            d["enabled"] = True
+        return d
+    if isinstance(raw, str):
+        skill_dict = skill_manager.get_skill(raw)
+        if skill_dict:
+            d = dict(skill_dict)
+            if "enabled" not in d:
+                d["enabled"] = True
+            return d
+    return None
+
 def get_session_stage(session_id: str, role: dict, requested_stage_id: Optional[int] = None) -> Optional[dict]:
-    skill = role.get("skill")
-    if not skill or not isinstance(skill, dict) or not skill.get("enabled"):
+    skill = resolve_role_skill(role)
+    if not skill or not skill.get("enabled"):
         return None
     stages = skill.get("stages", [])
     if not stages:
@@ -1064,8 +1086,8 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage:
                 )
 
     # 2. Role Skill Multi-Stage SOP Workflow Injection
-    skill = role.get("skill")
-    if skill and isinstance(skill, dict) and skill.get("enabled"):
+    skill = resolve_role_skill(role)
+    if skill and skill.get("enabled"):
         stages = skill.get("stages", [])
         if stages:
             curr_stage = stage if stage else stages[0]
@@ -1192,8 +1214,8 @@ async def chat_simulate(req: Request):
     advance_stage = bool(data.get("advance_stage", False))
 
     current_stage = get_session_stage(session_id, role, requested_stage_id)
-    skill_obj = role.get("skill")
-    stages = skill_obj.get("stages", []) if (skill_obj and isinstance(skill_obj, dict) and skill_obj.get("enabled")) else []
+    skill_obj = resolve_role_skill(role)
+    stages = skill_obj.get("stages", []) if (skill_obj and skill_obj.get("enabled")) else []
 
     if advance_stage and current_stage and stages:
         curr_idx = -1
@@ -1370,8 +1392,8 @@ async def get_role_session_stage(session_id: str = "web_simulator", role_id: Opt
         target_role = role_manager.get_active_role()
 
     stage = get_session_stage(session_id, target_role)
-    skill_obj = target_role.get("skill")
-    stages = skill_obj.get("stages", []) if (skill_obj and isinstance(skill_obj, dict) and skill_obj.get("enabled")) else []
+    skill_obj = resolve_role_skill(target_role)
+    stages = skill_obj.get("stages", []) if (skill_obj and skill_obj.get("enabled")) else []
     return {
         "session_id": session_id,
         "role_id": target_role.get("id"),
@@ -1913,7 +1935,7 @@ async def websocket_endpoint(websocket: WebSocket):
             has_next_tag = bool(re.search(r'\[NEXT_STAGE\]', full_assistant_reply, re.IGNORECASE))
             full_assistant_reply = re.sub(r'\[NEXT_STAGE\]', '', full_assistant_reply, flags=re.IGNORECASE).strip()
 
-            skill_obj = active_role.get("skill")
+            skill_obj = resolve_role_skill(active_role)
             if has_next_tag and skill_obj and skill_obj.get("enabled"):
                 stages = skill_obj.get("stages", [])
                 if device_stage and stages:
@@ -2105,7 +2127,9 @@ async def websocket_endpoint(websocket: WebSocket):
             active_devices[device_mac]["last_active"] = time.strftime("%H:%M:%S")
 
 # Mount Web Console static files
-web_dir = Path(__file__).parent / "web"
+web_dir = BASE_DIR / "gateway" / "web"
+if not web_dir.exists():
+    web_dir = Path(__file__).parent / "web"
 app.mount("/", StaticFiles(directory=str(web_dir), html=True), name="web")
 
 if __name__ == "__main__":

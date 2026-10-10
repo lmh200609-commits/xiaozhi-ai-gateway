@@ -21,15 +21,15 @@ from gateway.rag.fts_engine import Fts5SearchEngine
 from gateway.rag.embedding import embedding_engine
 from gateway.rag.entity_graph import entity_graph, RailwayEntity
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.db"
-DATA_DIR = DB_PATH.parent
+from gateway.config import DATA_DIR
+
+DB_PATH = DATA_DIR / "knowledge.db"
 
 class KnowledgeStore:
     def __init__(self):
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         self.fts_engine = Fts5SearchEngine(str(DB_PATH))
         self.init_db()
-        self._ensure_railway_knowledge()
 
     def get_conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(DB_PATH), timeout=20.0)

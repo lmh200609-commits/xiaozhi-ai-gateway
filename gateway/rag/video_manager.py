@@ -11,80 +11,15 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-VIDEOS_DIR = Path(__file__).resolve().parent.parent / "data" / "videos"
+from gateway.config import DATA_DIR
+
+VIDEOS_DIR = DATA_DIR / "videos"
 MANIFEST_FILE = VIDEOS_DIR / "videos_manifest.json"
 
 SUPPORTED_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv", ".webm")
 
-# Default metadata template for core park exhibits
-DEFAULT_MANIFEST = [
-    {
-        "video_id": "mzd_steam",
-        "file_name": "毛泽东号.mp4",
-        "title": "毛泽东号机车峥嵘岁月与英雄历程",
-        "category": "历史功勋蒸汽机车",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "1号机车历史展厅",
-        "aliases": ["毛泽东号", "毛泽东", "解放304", "解放型", "jf304", "八一号", "英雄机车", "历史蒸汽机车"],
-        "description": "1946年诞生于哈尔滨机务段，中国第一台以领袖命名的英雄机车，见证解放战争与抗美援朝。"
-    },
-    {
-        "video_id": "cr400_fuxing",
-        "file_name": "复兴号.mp4",
-        "title": "复兴号智能动车组与中国高铁新纪元",
-        "category": "现代高速动车组",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "3号高铁未来馆",
-        "aliases": ["复兴号", "中国高铁", "cr400", "cr400af", "cr400bf", "智能动车组", "高铁", "动车", "和谐号", "智能高铁"],
-        "description": "商业运营时速350公里世界第一，中国标准全自主研发的智能高铁列车。"
-    },
-    {
-        "video_id": "jingzhang_railway",
-        "file_name": "百年京张.mp4",
-        "title": "百年京张铁路与詹天佑人字形工程奇迹",
-        "category": "铁路历史工程",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "历史文化长廊展区",
-        "aliases": ["京张铁路", "百年京张", "詹天佑", "人字形铁路", "青龙桥火车站", "八达岭隧道", "之字形铁路"],
-        "description": "1909年中国人自主设计修建的第一条干线铁路，独创人字形折返线开创中国工程奇迹。"
-    },
-    {
-        "video_id": "df4_diesel",
-        "file_name": "东风4.mp4",
-        "title": "东风浩荡·内燃机车与绿色干线时代",
-        "category": "经典内燃机车",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "2号内燃时代展厅",
-        "aliases": ["东风4", "东风", "df4", "内燃机车", "绿皮车", "绿皮火车", "客运内燃机车", "西瓜涂装"],
-        "description": "经典东风4型内燃机车，中国铁路干线内燃化主力，承载数十年绿皮火车时代记忆。"
-    },
-    {
-        "video_id": "qianjin_steam",
-        "file_name": "前进型.mp4",
-        "title": "前进型蒸汽机车·重型工业之光",
-        "category": "重载蒸汽机车",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "1号机车历史展厅",
-        "aliases": ["前进型", "前进号", "前进型机车", "qj", "重载机车", "蒸汽机车货运"],
-        "description": "大同机车厂制造的中国重载货运主力蒸汽机车，牵引力大，中国最后一批停产的蒸汽主力。"
-    },
-    {
-        "video_id": "shaoshan1_electric",
-        "file_name": "韶山1型.mp4",
-        "title": "韶山1型电力机车·中国电气化铁路奠基之作",
-        "category": "第一代电力机车",
-        "zone_id": "baicheng_railway",
-        "zone_name": "白城火车园区知识区",
-        "zone": "3号电力时代展区",
-        "aliases": ["韶山1型", "韶山1", "韶山号", "ss1", "电力机车", "宝成铁路机车", "电气化机车"],
-        "description": "中国第一代交直流电力机车，攻克宝成铁路大坡道，开启中国铁路电气化新纪元。"
-    }
-]
+# Blank default manifest for vanilla distribution
+DEFAULT_MANIFEST = []
 
 
 class VideoAssetManager:

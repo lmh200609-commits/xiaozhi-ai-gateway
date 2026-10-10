@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+from gateway.config import DATA_DIR
 ZONES_FILE = DATA_DIR / "zones.json"
 
 DEFAULT_ZONES = [

@@ -17,6 +17,44 @@ def test_simulate_exact_mode_and_skill():
     print("🚀 Running E2E Test on /api/chat/simulate for Exact Mode & Skill SOP")
     print("=" * 60)
 
+    from gateway.roles.role_manager import role_manager
+    test_role = {
+        "id": "major_advisor",
+        "name": "高校专业咨询顾问",
+        "emoji": "🎓",
+        "description": "专业建设权威咨询",
+        "greeting": "您好！",
+        "voice": "zh-CN-YunxiNeural",
+        "temperature": 0.3,
+        "rag_enabled": True,
+        "rag_mode": "exact",
+        "rag_top_k": 3,
+        "zone_id": "default_zone",
+        "system_prompt": "高校官方咨询顾问",
+        "skill": "major_advisor",
+        "is_active": False,
+        "is_builtin": False
+    }
+    role_manager.add_role(test_role)
+
+    psy_role = {
+        "id": "psychologist",
+        "name": "温暖心理疗愈师",
+        "emoji": "🌸",
+        "description": "共情倾听与心理疏导",
+        "greeting": "你好，我是心语。",
+        "voice": "zh-CN-XiaoxiaoNeural",
+        "temperature": 0.5,
+        "rag_enabled": False,
+        "rag_mode": "smart",
+        "zone_id": "default_zone",
+        "system_prompt": "温柔心理咨询师",
+        "skill": "psychologist",
+        "is_active": False,
+        "is_builtin": False
+    }
+    role_manager.add_role(psy_role)
+
     # 1. Test major_advisor in exact mode with RAG hit
     test_doc = {
         "title": "软件工程专业建设成果报告",
@@ -172,9 +210,11 @@ def test_simulate_exact_mode_and_skill():
 
     finally:
         patcher.stop()
-        # Clean up test document
+        # Clean up test document and roles
         knowledge_store.delete_document(doc_id)
-        print("  ✅ [PASS] Test cleanup: removed temporary document.")
+        role_manager.delete_role("major_advisor")
+        role_manager.delete_role("psychologist")
+        print("  ✅ [PASS] Test cleanup: removed temporary document and test roles.")
 
     # E. Test Manual Document Physical Archive & Lossless Download
     res_man = client.post("/api/knowledge", json={
