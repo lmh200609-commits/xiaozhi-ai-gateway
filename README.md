@@ -2,11 +2,12 @@
 
 本项目是基于 ESP32 硬件与自建 Python 后端网关的小智 AI 语音助手全套工作区，支持离线语音识别 (SenseVoice)、在线流式语音合成 (Edge-TTS)、大模型对话中转、知识库 RAG 检索、设备端 MCP 工具调用及电脑端展厅展映控制。
 
-> 📦 **【Windows 免安装独立版 EXE 直接下载】**:
-> 如果您不想安装 Python 环境，可以直接下载我们为您打包的 **纯净空白便携运行版**：
-> * 📥 **直接下载安装包**: [release/XiaozhiGateway-v2.0-Vanilla.zip](release/XiaozhiGateway-v2.0-Vanilla.zip)
-> * ✨ **纯净原装**: 零测试残留数据，仅内置单一通用【专属知识库客服】角色，知识库全空白待导入。
-> * 🚀 **双击秒开**: 解压后直接双击【启动小智网关.bat】即可，内置完整 Web 管理后台、RAG 向量检索与语音服务！
+> 📦 **【Windows 独立运行版程序直接下载 (免 Python 环境)】**:
+> 如果您不想安装 Python 环境，可以直接在 GitHub Release 页面下载我们为您准备的原装运行程序：
+> * 🚀 **【推荐】一键安装程序 (Setup.exe)**: [**XiaozhiGateway-v2.0-Setup.exe (88.4 MB)**](https://github.com/lmh200609-commits/xiaozhi-ai-gateway/releases/download/v2.0.0/XiaozhiGateway-v2.0-Setup.exe) （下载后直接双击安装，自动在桌面生成启动图标）
+> * 🗂️ **绿色便携免安装版 (ZIP)**: [XiaozhiGateway-v2.0-Vanilla.zip (88.4 MB)](https://github.com/lmh200609-commits/xiaozhi-ai-gateway/releases/download/v2.0.0/XiaozhiGateway-v2.0-Vanilla.zip)
+> * 🌐 **官方 Release 发行版页面**: [GitHub Releases v2.0.0](https://github.com/lmh200609-commits/xiaozhi-ai-gateway/releases/tag/v2.0.0)
+> * ✨ **纯净原装**: 零测试数据残留，仅内置单一通用【专属知识库客服】角色，知识库全空白待导入。
 >
 > 📖 **通用化配置指南**: 请参阅 [ADAPTATION_GUIDE.md](ADAPTATION_GUIDE.md)，了解如何接入 DeepSeek、SiliconFlow、WiFi 配网与场景人设隔离。
 
