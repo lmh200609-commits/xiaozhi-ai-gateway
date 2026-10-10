@@ -391,10 +391,34 @@
               <span class="stat-label">直接验证人设与知识库检索</span>
             </div>
             <div class="simulator-box">
-              <div class="form-group">
-                <label>选择当前测试人设</label>
-                <select id="sim-role-select"></select>
+              <div style="display: flex; gap: 10px; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; margin-bottom: 8px;">
+                  <label>选择当前测试人设</label>
+                  <select id="sim-role-select" onchange="onSimRoleChanged()"></select>
+                </div>
+                <div id="sim-role-badges" style="display: flex; gap: 6px; margin-bottom: 12px; align-items: center;">
+                  <!-- Dynamic badges for RAG Mode & Skill SOP -->
+                </div>
               </div>
+
+              <!-- Interactive Skill Stage Bar (shown if active role has skill enabled) -->
+              <div id="sim-skill-banner" class="sim-skill-banner" style="display: none;">
+                <div class="sim-skill-header">
+                  <div class="sim-skill-title">
+                    <span>🧭 <strong id="sim-skill-name">SOP 工作流</strong></span>
+                    <span id="sim-skill-desc" class="sim-skill-desc"></span>
+                  </div>
+                  <div class="sim-skill-controls">
+                    <button class="btn btn-sm btn-outline" onclick="resetSimStage()" title="从阶段一重新开始">🔄 重置流程</button>
+                    <button class="btn btn-sm btn-primary" id="btn-next-stage" onclick="advanceSimStage()" title="手动推进到下一阶段">⏭️ 下一阶段</button>
+                  </div>
+                </div>
+                <div id="sim-skill-stages" class="sim-skill-stages">
+                  <!-- Dynamic clickable stage pills -->
+                </div>
+                <div id="sim-skill-active-hint" class="sim-skill-active-hint"></div>
+              </div>
+
               <div id="sim-chat-view" class="simulator-chat-view">
                 <div class="sim-msg-ai">
                   你好！我是你的小智 AI 语音助手。有什么问题我可以为你解答？
@@ -553,15 +577,23 @@
         <div style="display: flex; gap: 16px;">
           <div class="form-group" style="flex: 1;">
             <label>模型温度 (Temperature: <span id="val-temp">0.7</span>)</label>
-            <input type="range" min="0.1" max="1.0" step="0.05" id="role-temp" value="0.7" oninput="document.getElementById('val-temp').textContent = this.value">
-            <small>数值越低越严谨，越高越生动富有幽默感</small>
+            <input type="range" min="0.0" max="1.0" step="0.05" id="role-temp" value="0.7" oninput="document.getElementById('val-temp').textContent = this.value">
+            <small>严格模式必须设定为 0.0，数值越低越严谨，越高越生动</small>
           </div>
-          <div class="form-group" style="width: 150px;">
+          <div class="form-group" style="width: 140px;">
             <label>知识库检索开关</label>
-            <select id="role-rag-enabled">
+            <select id="role-rag-enabled" onchange="updateRoleRagModeVisibility()">
               <option value="false">⚪ 不启用</option>
               <option value="true">🟢 启用 RAG</option>
             </select>
+          </div>
+          <div class="form-group" style="width: 210px;" id="role-rag-mode-group">
+            <label>RAG 复述模式</label>
+            <select id="role-rag-mode" onchange="onRoleRagModeChanged()">
+              <option value="smart">🧠 智能润色总结</option>
+              <option value="exact">🎯 严格原文复述 (一字不改)</option>
+            </select>
+            <small id="role-rag-mode-hint">结合常识口语化润色解答</small>
           </div>
         </div>
         <div class="form-group" id="role-zone-group">
@@ -573,7 +605,51 @@
         </div>
         <div class="form-group">
           <label>系统人设提示词 (System Prompt)</label>
-          <textarea id="role-prompt" rows="5" placeholder="详细设定 AI 语气、身份以及口语化限制..."></textarea>
+          <textarea id="role-prompt" rows="4" placeholder="详细设定 AI 语气、身份以及口语化限制..."></textarea>
+        </div>
+
+        <!-- Role Skill SOP Guided Workflow Section -->
+        <div class="skill-config-card" style="margin-top: 14px; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 600; font-size: 14px; color: #1e293b;">🧭 角色 Skill 引导式工作流 (SOP)</span>
+              <span class="badge" style="background: #e0e7ff; color: #4338ca; font-size: 11px;">多阶段引导</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <select id="role-skill-enabled" onchange="toggleSkillConfig(this.value === 'true')" style="width: 110px; font-size: 12px; padding: 4px 8px;">
+                <option value="false">⚪ 未启用</option>
+                <option value="true">🟢 启用SOP</option>
+              </select>
+            </div>
+          </div>
+          <div id="skill-config-body" style="display: none; border-top: 1px dashed #cbd5e1; padding-top: 12px; margin-top: 8px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label>技能方案名称</label>
+                <input type="text" id="role-skill-name" placeholder="如：高校招生与专业咨询SOP">
+              </div>
+              <div class="form-group" style="width: 240px; margin-bottom: 0;">
+                <label>⚡ 快速套用预设模版</label>
+                <select id="role-skill-preset" onchange="applySkillPreset(this.value)">
+                  <option value="">⚡ 选择预设模版快速套用...</option>
+                  <option value="major_advisor">🎓 高校专业与招生引导 (4阶段)</option>
+                  <option value="psychologist">🌱 心理咨询与情绪修复 (4阶段)</option>
+                  <option value="socratic">📖 苏格拉底启发式教学 (3阶段)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label>流程简述与定位</label>
+              <input type="text" id="role-skill-desc" placeholder="简述该流程的核心逻辑与引导目标">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label style="font-weight: 600; font-size: 13px; color: #334155; margin: 0;">📋 工作流阶段列表 (Stages)</label>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addSkillStageRow()">+ 添加阶段</button>
+            </div>
+            <div id="skill-stages-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+              <!-- Dynamic stage items -->
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">

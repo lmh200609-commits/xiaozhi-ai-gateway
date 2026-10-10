@@ -1,0 +1,133 @@
+import sys
+import os
+import json
+from unittest.mock import patch
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from starlette.testclient import TestClient
+from gateway.main import app, session_skill_tracker
+from gateway.roles.role_manager import role_manager
+from gateway.rag.knowledge_store import knowledge_store
+
+client = TestClient(app)
+
+def test_simulate_exact_mode_and_skill():
+    print("=" * 60)
+    print("🚀 Running E2E Test on /api/chat/simulate for Exact Mode & Skill SOP")
+    print("=" * 60)
+
+    # 1. Test major_advisor in exact mode with RAG hit
+    test_doc = {
+        "title": "软件工程专业建设成果报告",
+        "category": "专业介绍",
+        "content": "大连东软信息学院软件工程专业是首批国家级一流本科专业建设点，建有国家级软件工程实验教学示范中心，依托东软产业优势，实施TOPCARES一体化人才培养模式。",
+        "zone_id": "default_zone",
+        "source_file_name": "软件工程专业建设成果报告.md"
+    }
+    doc_id = knowledge_store.add_structured_document(
+        doc_data={
+            "title": test_doc["title"],
+            "category": test_doc["category"],
+            "summary": "专业建设成果介绍",
+            "qa_pairs": [{
+                "question": "请你介绍学校专业建设情况",
+                "answer": test_doc["content"]
+            }],
+            "fact_chunks": [{
+                "title": test_doc["title"],
+                "content": test_doc["content"]
+            }]
+        },
+        raw_text=test_doc["content"],
+        file_name="软件工程专业建设成果报告.md",
+        file_type="md",
+        zone_id="default_zone",
+        zone_name="默认通用知识区"
+    )
+
+    # Mock RelayLLMClient.stream_chat to inspect effective prompt and temperature passed
+    captured_calls = []
+
+    async def mock_stream_chat(self, user_text, device_tools=None, system_prompt="", temperature=0.7):
+        captured_calls.append({
+            "user_text": user_text,
+            "system_prompt": system_prompt,
+            "temperature": temperature
+        })
+        # If exact mode and hit, return verbatim chunk
+        if "严格知识库原文复述模式" in system_prompt and "大连东软信息学院软件工程专业" in system_prompt:
+            yield test_doc["content"], None, {"ttft_ms": 12.0}
+        elif "未检索到与用户提问匹配的官方权威记录" in system_prompt or "未检索到官方记录指令" in system_prompt:
+            yield "抱歉，官方知识库中暂未收录相关权威内容。", None, {"ttft_ms": 10.0}
+        else:
+            yield f"这是当前阶段的模拟引导回复", None, {"ttft_ms": 15.0}
+
+    with patch("gateway.llm.relay_client.RelayLLMClient.stream_chat", mock_stream_chat):
+        # A. Query major_advisor with matching question
+        res = client.post("/api/chat/simulate", json={
+            "text": "请你介绍学校专业建设情况",
+            "role_id": "major_advisor",
+            "session_id": "test_e2e_session"
+        })
+        assert res.status_code == 200, res.text
+        data = res.json()
+        assert data["rag_mode"] == "exact"
+        assert len(data["rag_matched"]) > 0
+        assert data["rag_matched"][0]["source_file_name"] == "软件工程专业建设成果报告.md"
+        assert data["assistant_reply"] == test_doc["content"]
+        assert captured_calls[-1]["temperature"] == 0.0, f"Expected temperature 0.0, got {captured_calls[-1]['temperature']}"
+        assert "严格知识库原文复述模式" in captured_calls[-1]["system_prompt"]
+        print("  ✅ [PASS] Test A: Exact verbatim mode matched RAG, temperature=0.0, exact text returned.")
+
+        # B. Query major_advisor with unhit question in exact mode
+        res_unhit = client.post("/api/chat/simulate", json={
+            "text": "明天天气怎么样，会下雨吗？",
+            "role_id": "major_advisor",
+            "session_id": "test_e2e_session"
+        })
+        assert res_unhit.status_code == 200
+        data_unhit = res_unhit.json()
+        assert data_unhit["rag_mode"] == "exact"
+        assert "抱歉，官方知识库中暂未收录相关权威内容。" in data_unhit["assistant_reply"]
+        assert captured_calls[-1]["temperature"] == 0.0
+        print("  ✅ [PASS] Test B: Exact verbatim mode unhit handled with standardized refusal, 0 hallucination.")
+
+        # C. Query psychologist with multi-stage workflow
+        res_psy1 = client.post("/api/chat/simulate", json={
+            "text": "心语老师，我最近压力很大",
+            "role_id": "psychologist",
+            "stage_id": 1,
+            "session_id": "psy_session"
+        })
+        assert res_psy1.status_code == 200
+        data_psy1 = res_psy1.json()
+        assert data_psy1["skill_info"]["current_stage_id"] == 1
+        assert "共情倾听" in data_psy1["skill_info"]["current_stage_name"]
+        assert "阶段 1 - 【共情倾听与全然接纳】" in captured_calls[-1]["system_prompt"]
+        print("  ✅ [PASS] Test C1: Psychologist Stage 1 (Empathy) executed.")
+
+        # Advance to Stage 2
+        res_psy2 = client.post("/api/chat/simulate", json={
+            "text": "主要是工作上领导给的指标太重了",
+            "role_id": "psychologist",
+            "advance_stage": True,
+            "session_id": "psy_session"
+        })
+        assert res_psy2.status_code == 200
+        data_psy2 = res_psy2.json()
+        assert data_psy2["skill_info"]["current_stage_id"] == 2
+        assert "温和探寻诱因" in data_psy2["skill_info"]["current_stage_name"]
+        assert "阶段 2 - 【温和探寻诱因与困扰】" in captured_calls[-1]["system_prompt"]
+        print("  ✅ [PASS] Test C2: Psychologist advance_stage smoothly stepped to Stage 2.")
+
+    # Clean up test document
+    knowledge_store.delete_document(doc_id)
+    print("  ✅ [PASS] Test cleanup: removed temporary document.")
+
+    print("\n" + "=" * 60)
+    print("🎉 ALL SIMULATE E2E TESTS PASSED 100%!")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    test_simulate_exact_mode_and_skill()

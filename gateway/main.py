@@ -656,16 +656,55 @@ async def delete_video(video_id: str, delete_file: bool = True):
         return {"status": "ok", "message": "视频展项已删除"}
     return JSONResponse(status_code=404, content={"error": "视频不存在"})
 
-def build_effective_prompt(role: dict, user_text: str, rag_matched: list) -> str:
+session_skill_tracker = {}
+
+def get_session_stage(session_id: str, role: dict, requested_stage_id: Optional[int] = None) -> Optional[dict]:
+    skill = role.get("skill")
+    if not skill or not isinstance(skill, dict) or not skill.get("enabled"):
+        return None
+    stages = skill.get("stages", [])
+    if not stages:
+        return None
+
+    target_stage = None
+    if requested_stage_id is not None:
+        for s in stages:
+            if s.get("stage_id") == requested_stage_id:
+                target_stage = s
+                break
+
+    if not target_stage and session_id and session_id in session_skill_tracker:
+        tracked = session_skill_tracker[session_id]
+        if tracked.get("role_id") == role.get("id"):
+            tid = tracked.get("stage_id")
+            for s in stages:
+                if s.get("stage_id") == tid:
+                    target_stage = s
+                    break
+
+    if not target_stage:
+        target_stage = stages[0]
+
+    if session_id:
+        session_skill_tracker[session_id] = {
+            "role_id": role.get("id"),
+            "stage_id": target_stage.get("stage_id", 1),
+            "updated_at": time.time()
+        }
+
+    return target_stage
+
+def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage: Optional[dict] = None) -> str:
     """
     Builds the complete dynamic system prompt taking into account:
     - Active role persona & voice constraints
-    - Preschool teacher vs railway guide vs general assistant
-    - Storytelling / Bedtime accompaniment mode (long-form continuous warm speech)
-    - Everyday Q&A mode (concise 2-4 sentences)
+    - RAG Mode: 'exact' (verbatim reproduction without modification) vs 'smart' (AI synthesis & paraphrasing)
+    - Role Skill: Multi-stage guided SOP workflows (psychologist, admissions advisor, etc.)
+    - Bedtime accompaniment / storytelling mode
     - Strict prohibition of Markdown asterisks (* and **) for speech output
     """
     effective_prompt = role.get("system_prompt", config.system_prompt)
+    rag_mode = role.get("rag_mode", "smart")
     is_railway_role = (
         role.get("id") == "railway_guide" or 
         "小铁" in role.get("name", "") or 
@@ -685,64 +724,120 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list) -> str
     zone_obj = zone_manager.get_zone(target_zone_id)
     zone_title = zone_obj.get("name", "专属知识库") if zone_obj else "专属知识库"
 
-    if rag_matched:
-        docs_text = "\n\n".join([f"[{i+1}] 《{c['title']}》: {c['content']}" for i, c in enumerate(rag_matched)])
-        if is_railway_role:
+    # 1. RAG Knowledge Injection Logic
+    if rag_mode == "exact":
+        # Strict Verbatim Mode: 100% faithful reproduction, zero self-expansion, zero web search
+        if rag_matched:
+            docs_text = "\n\n".join([f"【官方知识库权威档案记录 {i+1}】\n{c['content']}" for i, c in enumerate(rag_matched)])
             effective_prompt += (
-                f"\n\n【中国·大安机车博览园 权威参考资料】：\n{docs_text}\n"
-                f"【解说规范】：请结合以上资料，以大安机车博览园智慧导览员小铁的亲切自豪口吻为游客生动解说，篇幅2-3句话直奔核心要点，热情自然。严禁输出任何星号（*或**）或加粗符号！"
-            )
-            first_hit = rag_matched[0]
-            if first_hit.get("entity", {}).get("has_multimedia"):
-                ent = first_hit["entity"]
-                effective_prompt += (
-                    f"\n【展项专题视频资源】：本展项在后台配有展映短片《{ent['video_title']}》（对应关键词: '{ent['name']}'）。\n"
-                    f"【视频交互规范（核心原则）】：\n"
-                    f"1. 仅当游客发出明确播放指令（如“播放视频”、“我想看视频”、“放一下毛泽东号短片”、“大屏播放”）时，才可调用 play_video(keyword='{ent['name']}')。\n"
-                    f"2. 若游客只是询问“需要看什么视频”、“有什么视频推荐”、“能看什么片子”等咨询探索类问题，绝对禁止直接调用 play_video！你应以小铁的亲切口吻热情介绍博览园有哪些精彩短片（如毛泽东号峥嵘岁月、复兴号智能动车组、百年京张等），并主动询问游客想先看哪一部。"
-                )
-        elif is_story_intent or (is_preschool_role and any("故事" in c.get("title", "") for c in rag_matched)):
-            effective_prompt += (
-                f"\n\n【{zone_title} 睡前故事与陪伴参考资料】：\n{docs_text}\n"
-                f"【长篇睡前故事与声音陪伴规范】：\n"
-                f"1. 当前处于讲故事与睡前陪伴场景！请以充满爱心、温柔甜美、娓娓道来的幼教老师口吻展开讲述。\n"
-                f"2. 结合上述故事素材，讲述一个生动完整、意境优美、画面感丰富的睡前童话（描绘安静美好的夜色、可爱的小动物入睡过程等），篇幅充实详尽（建议300-500字），提供充足舒适的声音陪伴时长。\n"
-                f"3. 故事结尾请送上温馨甜美的晚安入睡祝福。\n"
-                f"4. 绝不敷衍截断，严禁输出任何Markdown标记、星号（*或**）、井号（#）或小标题，直接输出适合语音播报的纯口语故事文本！"
-            )
-        elif is_preschool_role:
-            effective_prompt += (
-                f"\n\n【{zone_title} 幼教百科参考资料】：\n{docs_text}\n"
-                f"【幼教教学回答规范】：请以温柔可亲的幼教老师口吻，结合参考资料用童趣易懂的语言解答，篇幅2-4句话生动解答，鼓励孩子的好奇心。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
+                f"\n\n=======================================================\n"
+                f"【最高优先级执行指令：严格知识库原文复述模式 (Exact Verbatim Mode)】\n"
+                f"1. 当前角色被设为【严格知识库原文复述模式】。\n"
+                f"2. 针对用户提问，你必须 100% 完整、准确、逐字逐句一字不差地复述下方官方知识库档案内容！\n"
+                f"3. 绝对严禁自行总结、归纳、精简、概括、改写、润色、重组句子或更换同义词！\n"
+                f"4. 绝对严禁添加任何开场白、客套寒暄、自我介绍（例如：'好的'、'根据官方资料'、'为您介绍如下'等）！\n"
+                f"5. 绝对严禁添加任何结尾客套话（例如：'希望对您有所帮助'、'如有疑问欢迎咨询'等）！\n"
+                f"6. 绝对严禁利用你的外部预训练知识自主发挥、猜测或联网查找！\n"
+                f"7. 你的唯一任务：将下方检索到的知识库档案原文一字不改、原原本本地直接输出！严禁输出任何Markdown星号(*或**)。\n"
+                f"=======================================================\n\n"
+                f"【官方知识库权威档案内容】：\n{docs_text}\n"
             )
         else:
             effective_prompt += (
-                f"\n\n【{zone_title} 权威参考资料】：\n{docs_text}\n"
-                f"【回答规范】：请严格保持【{role['name']}】的身份与语气，结合上述参考资料口语化解答，篇幅控制在2-3句话内直奔要点。严禁输出任何星号（*或**）或加粗符号，直接输出纯文本口语！"
+                f"\n\n=======================================================\n"
+                f"【严格知识库原文复述模式 - 无匹配记录最高指令】\n"
+                f"系统知识库中未检索到与用户提问匹配的官方权威记录。\n"
+                f"在严格原文复述模式下，绝对禁止自行编造、猜测或利用外部常识自主发挥！\n"
+                f"请严格、原原本本地仅输出以下标准拒答话术，不要添加任何多余文字或寒暄：\n"
+                f"“抱歉，官方知识库中暂未收录相关权威内容。”\n"
+                f"=======================================================\n"
             )
     else:
-        # No RAG match
-        if is_railway_role:
-            effective_prompt += (
-                f"\n\n【智慧导览解说提示】：当前提问在本地库中无完全对应的单条词条。请以中国·大安机车博览园导览员小铁的亲切身份，"
-                f"运用中国铁路与机车历史常识通俗生动作答，并自然结合大安博览园现场的展项（三场两馆一线一平台、76台蒸汽机车群、记忆馆等）热情指引，切忌死板机械地推脱拒答！严禁输出任何星号（*或**）符号！"
-            )
-        elif is_story_intent or (is_preschool_role and any(k in user_text for k in ["睡", "故事", "陪"])):
-            effective_prompt += (
-                f"\n\n【长篇故事与睡前温暖陪伴指令】：\n"
-                f"1. 小朋友正在请求听故事或睡前哄睡陪伴！请发挥丰富的想象力，讲述一个生动温暖、情节完整、充满童趣与安全感的温馨童话（如森林小动物、月亮星空或梦境探险）。\n"
-                f"2. 语言请极尽温柔、语调舒缓自然，篇幅充实（建议300-500字左右），让温暖的声音长效陪伴孩子。\n"
-                f"3. 故事结尾送上一句轻柔温暖的晚安祝福（例如祝宝贝做个香甜美梦）。\n"
-                f"4. 绝不要用一两句话草率了事！严禁输出任何星号（*或**）、井号（#）或Markdown符号，直接输出纯文本口语！"
-            )
-        elif is_preschool_role:
-            effective_prompt += (
-                f"\n\n【幼教互动提示】：请以充满爱心、亲切温柔、启发式的幼教老师口吻与小朋友交流，用通俗生动的语言解答，篇幅控制在2-4句话内。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
-            )
+        # Smart Mode: AI synthesis, paraphrasing, conversational adaptation
+        if rag_matched:
+            docs_text = "\n\n".join([f"[{i+1}] 《{c['title']}》: {c['content']}" for i, c in enumerate(rag_matched)])
+            if is_railway_role:
+                effective_prompt += (
+                    f"\n\n【中国·大安机车博览园 权威参考资料】：\n{docs_text}\n"
+                    f"【解说规范】：请结合以上资料，以大安机车博览园智慧导览员小铁的亲切自豪口吻为游客生动解说，篇幅2-3句话直奔核心要点，热情自然。严禁输出任何星号（*或**）或加粗符号！"
+                )
+                first_hit = rag_matched[0]
+                if first_hit.get("entity", {}).get("has_multimedia"):
+                    ent = first_hit["entity"]
+                    effective_prompt += (
+                        f"\n【展项专题视频资源】：本展项在后台配有展映短片《{ent['video_title']}》（对应关键词: '{ent['name']}'）。\n"
+                        f"【视频交互规范（核心原则）】：\n"
+                        f"1. 仅当游客发出明确播放指令（如“播放视频”、“我想看视频”、“放一下毛泽东号短片”、“大屏播放”）时，才可调用 play_video(keyword='{ent['name']}')。\n"
+                        f"2. 若游客只是询问“需要看什么视频”、“有什么视频推荐”、“能看什么片子”等咨询探索类问题，绝对禁止直接调用 play_video！你应以小铁的亲切口吻热情介绍博览园有哪些精彩短片（如毛泽东号峥嵘岁月、复兴号智能动车组、百年京张等），并主动询问游客想先看哪一部。"
+                    )
+            elif is_story_intent or (is_preschool_role and any("故事" in c.get("title", "") for c in rag_matched)):
+                effective_prompt += (
+                    f"\n\n【{zone_title} 睡前故事与陪伴参考资料】：\n{docs_text}\n"
+                    f"【长篇睡前故事与声音陪伴规范】：\n"
+                    f"1. 当前处于讲故事与睡前陪伴场景！请以充满爱心、温柔甜美、娓娓道来的幼教老师口吻展开讲述。\n"
+                    f"2. 结合上述故事素材，讲述一个生动完整、意境优美、画面感丰富的睡前童话（描绘安静美好的夜色、可爱的小动物入睡过程等），篇幅充实详尽（建议300-500字），提供充足舒适的声音陪伴时长。\n"
+                    f"3. 故事结尾请送上温馨甜美的晚安入睡祝福。\n"
+                    f"4. 绝不敷衍截断，严禁输出任何Markdown标记、星号（*或**）、井号（#）或小标题，直接输出适合语音播报的纯口语故事文本！"
+                )
+            elif is_preschool_role:
+                effective_prompt += (
+                    f"\n\n【{zone_title} 幼教百科参考资料】：\n{docs_text}\n"
+                    f"【幼教教学回答规范】：请以温柔可亲的幼教老师口吻，结合参考资料用童趣易懂的语言解答，篇幅2-4句话生动解答，鼓励孩子的好奇心。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
+                )
+            else:
+                effective_prompt += (
+                    f"\n\n【{zone_title} 权威参考资料】：\n{docs_text}\n"
+                    f"【回答规范】：请严格保持【{role['name']}】的身份与语气，结合上述参考资料口语化解答，篇幅控制在2-3句话内直奔要点。严禁输出任何星号（*或**）或加粗符号，直接输出纯文本口语！"
+                )
         else:
-            effective_prompt += (
-                f"\n\n【交互提示】：请严格遵循【{role['name']}】的人设与语气，自然亲切地与用户口语交流，篇幅控制在1-3句话内。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
+            # No RAG match in Smart Mode
+            if is_railway_role:
+                effective_prompt += (
+                    f"\n\n【智慧导览解说提示】：当前提问在本地库中无完全对应的单条词条。请以中国·大安机车博览园导览员小铁的亲切身份，"
+                    f"运用中国铁路与机车历史常识通俗生动作答，并自然结合大安博览园现场的展项（三场两馆一线一平台、76台蒸汽机车群、记忆馆等）热情指引，切忌死板机械地推脱拒答！严禁输出任何星号（*或**）符号！"
+                )
+            elif is_story_intent or (is_preschool_role and any(k in user_text for k in ["睡", "故事", "陪"])):
+                effective_prompt += (
+                    f"\n\n【长篇故事与睡前温暖陪伴指令】：\n"
+                    f"1. 小朋友正在请求听故事或睡前哄睡陪伴！请发挥丰富的想象力，讲述一个生动温暖、情节完整、充满童趣与安全感的温馨童话（如森林小动物、月亮星空或梦境探险）。\n"
+                    f"2. 语言请极尽温柔、语调舒缓自然，篇幅充实（建议300-500字左右），让温暖的声音长效陪伴孩子。\n"
+                    f"3. 故事结尾送上一句轻柔温暖的晚安祝福（例如祝宝贝做个香甜美梦）。\n"
+                    f"4. 绝不要用一两句话草率了事！严禁输出任何星号（*或**）、井号（#）或Markdown符号，直接输出纯文本口语！"
+                )
+            elif is_preschool_role:
+                effective_prompt += (
+                    f"\n\n【幼教互动提示】：请以充满爱心、亲切温柔、启发式的幼教老师口吻与小朋友交流，用通俗生动的语言解答，篇幅控制在2-4句话内。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
+                )
+            else:
+                effective_prompt += (
+                    f"\n\n【交互提示】：请严格遵循【{role['name']}】的人设与语气，自然亲切地与用户口语交流，篇幅控制在1-3句话内。严禁输出任何星号（*或**）符号，直接输出纯文本口语！"
+                )
+
+    # 2. Role Skill Multi-Stage SOP Workflow Injection
+    skill = role.get("skill")
+    if skill and isinstance(skill, dict) and skill.get("enabled"):
+        stages = skill.get("stages", [])
+        if stages:
+            curr_stage = stage if stage else stages[0]
+            stages_overview = "\n".join([
+                f"  {idx+1}. 阶段 {s.get('stage_id', idx+1)}【{s.get('name', '')}】：目标: {s.get('goal', '')}（流转判定: {s.get('exit_condition', '')}）"
+                for idx, s in enumerate(stages)
+            ])
+            skill_prompt = (
+                f"\n\n=======================================================\n"
+                f"【角色专属 Skill 引导式工作流：{skill.get('name', '多阶段SOP工作流')}】\n"
+                f"【流程定位】：{skill.get('description', '')}\n"
+                f"【完整SOP流程全景】：\n{stages_overview}\n\n"
+                f"👉 【当前执行阶段】：阶段 {curr_stage.get('stage_id')} - 【{curr_stage.get('name')}】\n"
+                f"🎯 【本阶段核心目标】：{curr_stage.get('goal')}\n"
+                f"📝 【本阶段执行指令与策略】：{curr_stage.get('instruction')}\n"
+                f"🔄 【进入下一阶段的流转判定】：{curr_stage.get('exit_condition')}\n"
+                f"【SOP执行铁律】：\n"
+                f"1. 你当前轮次的所有对话沟通、提问或解说，必须严格遵循【当前执行阶段】的目标与指令进行！\n"
+                f"2. 严禁超前抢答后续阶段的内容，保持循序渐进的专业引导节奏。\n"
+                f"=======================================================\n"
             )
+            effective_prompt += skill_prompt
 
     return effective_prompt
 
@@ -828,8 +923,48 @@ async def chat_simulate(req: Request):
         rag_matched = knowledge_store.search(user_text, top_k=top_k, zone_id=target_zone_id)
         rag_ms = (time.time() - t0) * 1000.0
 
-    effective_prompt = build_effective_prompt(role, user_text, rag_matched)
-    effective_temp = 0.70 if is_story_intent else role.get("temperature", config.temperature)
+    session_id = data.get("session_id", "web_simulator")
+    requested_stage_id = data.get("stage_id")
+    advance_stage = bool(data.get("advance_stage", False))
+
+    current_stage = get_session_stage(session_id, role, requested_stage_id)
+    skill_obj = role.get("skill")
+    stages = skill_obj.get("stages", []) if (skill_obj and isinstance(skill_obj, dict) and skill_obj.get("enabled")) else []
+
+    if advance_stage and current_stage and stages:
+        curr_idx = -1
+        for idx, s in enumerate(stages):
+            if s.get("stage_id") == current_stage.get("stage_id"):
+                curr_idx = idx
+                break
+        if curr_idx != -1 and curr_idx + 1 < len(stages):
+            current_stage = stages[curr_idx + 1]
+            session_skill_tracker[session_id] = {
+                "role_id": role.get("id"),
+                "stage_id": current_stage.get("stage_id"),
+                "updated_at": time.time()
+            }
+
+    next_stage_id = None
+    if current_stage and stages:
+        curr_idx = -1
+        for idx, s in enumerate(stages):
+            if s.get("stage_id") == current_stage.get("stage_id"):
+                curr_idx = idx
+                break
+        if curr_idx != -1 and curr_idx + 1 < len(stages):
+            next_stage_id = stages[curr_idx + 1].get("stage_id")
+
+    effective_prompt = build_effective_prompt(role, user_text, rag_matched, stage=current_stage)
+
+    rag_mode = role.get("rag_mode", "smart")
+    if rag_mode == "exact":
+        effective_temp = 0.0
+    elif is_story_intent:
+        effective_temp = 0.70
+    else:
+        effective_temp = role.get("temperature", config.temperature)
+
     is_railway_role = (role.get("id") == "railway_guide" or "小铁" in role.get("name", "") or "博览园" in role.get("name", ""))
 
     # 2. LLM Stream with PC Agent Tools
@@ -847,7 +982,7 @@ async def chat_simulate(req: Request):
         user_text,
         device_tools=active_tools,
         system_prompt=effective_prompt,
-        temperature=role.get("temperature", config.temperature)
+        temperature=effective_temp
     ):
         if metrics.get("ttft_ms") and ttft_ms == 0.0:
             ttft_ms = metrics["ttft_ms"]
@@ -906,10 +1041,25 @@ async def chat_simulate(req: Request):
     }
     add_log(log_entry)
 
+    skill_info = None
+    if skill_obj and skill_obj.get("enabled") and current_stage:
+        skill_info = {
+            "enabled": True,
+            "name": skill_obj.get("name", "SOP 工作流"),
+            "description": skill_obj.get("description", ""),
+            "current_stage_id": current_stage.get("stage_id"),
+            "current_stage_name": current_stage.get("name"),
+            "current_stage_goal": current_stage.get("goal"),
+            "stages": stages,
+            "next_stage_id": next_stage_id
+        }
+
     return {
         "user_text": user_text,
         "assistant_reply": assistant_reply,
         "role": role,
+        "rag_mode": rag_mode,
+        "skill_info": skill_info,
         "rag_matched": rag_matched,
         "executed_tools": executed_tools,
         "metrics": {
@@ -918,6 +1068,47 @@ async def chat_simulate(req: Request):
             "total_ms": round(total_ms, 1)
         }
     }
+
+@app.get("/api/roles/session_stage")
+async def get_role_session_stage(session_id: str = "web_simulator", role_id: Optional[str] = None):
+    target_role = None
+    if role_id:
+        for r in role_manager.get_roles():
+            if r["id"] == role_id:
+                target_role = r
+                break
+    if not target_role:
+        target_role = role_manager.get_active_role()
+
+    stage = get_session_stage(session_id, target_role)
+    skill_obj = target_role.get("skill")
+    stages = skill_obj.get("stages", []) if (skill_obj and isinstance(skill_obj, dict) and skill_obj.get("enabled")) else []
+    return {
+        "session_id": session_id,
+        "role_id": target_role.get("id"),
+        "stage": stage,
+        "stages": stages,
+        "enabled": bool(skill_obj and skill_obj.get("enabled"))
+    }
+
+@app.post("/api/roles/session_stage")
+async def set_role_session_stage(req: Request):
+    data = await req.json()
+    session_id = data.get("session_id", "web_simulator")
+    role_id = data.get("role_id")
+    stage_id = data.get("stage_id", 1)
+
+    target_role = None
+    if role_id:
+        for r in role_manager.get_roles():
+            if r["id"] == role_id:
+                target_role = r
+                break
+    if not target_role:
+        target_role = role_manager.get_active_role()
+
+    stage = get_session_stage(session_id, target_role, requested_stage_id=stage_id)
+    return {"status": "ok", "stage": stage}
 
 @app.post("/api/device/control")
 async def control_device(req: Request):
@@ -1182,7 +1373,13 @@ async def websocket_endpoint(websocket: WebSocket):
             effective_voice = active_role.get("voice", config.tts_voice)
             story_keywords = ["故事", "睡前", "哄睡", "童话", "晚安", "睡觉", "睡不着", "摇篮", "寓言", "讲个", "讲一篇", "陪伴"]
             is_story_intent = any(k in user_text for k in story_keywords)
-            effective_temp = 0.70 if is_story_intent else active_role.get("temperature", config.temperature)
+            rag_mode = active_role.get("rag_mode", "smart")
+            if rag_mode == "exact":
+                effective_temp = 0.0
+            elif is_story_intent:
+                effective_temp = 0.70
+            else:
+                effective_temp = active_role.get("temperature", config.temperature)
 
             # 2. Knowledge Base (RAG) Lookup with strict Zone physical isolation
             rag_matched = []
@@ -1201,7 +1398,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 if rag_matched:
                     print(f"[RAG] Hybrid retrieved {len(rag_matched)} relevant chunks ({rag_ms:.1f}ms) in zone '{target_zone_id}'")
 
-            effective_prompt = build_effective_prompt(active_role, user_text, rag_matched)
+            device_stage = get_session_stage(device_mac, active_role)
+            effective_prompt = build_effective_prompt(active_role, user_text, rag_matched, stage=device_stage)
 
             # 3. Combine ESP32 hardware tools and PC Agent tools with strict Intent Gating
             base_tools = list(PC_TOOLS_DEFINITIONS)

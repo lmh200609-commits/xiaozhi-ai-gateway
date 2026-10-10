@@ -1301,4 +1301,162 @@ body {
   flex-wrap: wrap;
 }
 
+/* ================= RAG Mode & Skill Badges ================= */
+.badge-exact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-smart {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ================= Simulator Skill Workflow Banner ================= */
+.sim-skill-banner {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #4f46e5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.sim-skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sim-skill-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.sim-skill-desc {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: normal;
+}
+
+.sim-skill-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sim-skill-stages {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  align-items: center;
+}
+
+.sim-skill-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sim-skill-stage-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.sim-skill-stage-pill.active {
+  background: #4f46e5;
+  border-color: #4338ca;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+}
+
+.sim-skill-stage-pill.passed {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.sim-skill-active-hint {
+  font-size: 11px;
+  color: #3730a3;
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: #e0e7ff;
+  border-radius: 5px;
+  line-height: 1.4;
+}
+
+/* ================= Role Modal Skill Stage Editor ================= */
+.skill-stage-row {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skill-stage-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skill-stage-badge {
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
 

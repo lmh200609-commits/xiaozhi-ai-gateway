@@ -1257,6 +1257,7 @@ async function fetchRoles() {
       simSelect.innerHTML = allRoles.map(r => `
         <option value="${r.id}" ${r.id === activeRoleId ? 'selected' : ''}>${r.emoji} ${escapeHtml(r.name)}</option>
       `).join('');
+      onSimRoleChanged();
     }
 
     const container = document.getElementById('roles-container');
@@ -1269,6 +1270,15 @@ async function fetchRoles() {
       if (role.rag_enabled) {
         zoneTagText = boundZone ? `📚 专属: ${boundZone.icon || '🏛️'} ${escapeHtml(boundZone.name)}` : '📚 随全局激活知识区';
       }
+
+      const ragBadge = role.rag_mode === 'exact'
+        ? '<span class="badge-exact" title="一字不差复述知识库原文，严禁自主发挥">🎯 严格原文复述</span>'
+        : (role.rag_enabled ? '<span class="badge-smart" title="结合知识库智能润色总结解答">🧠 智能润色总结</span>' : '');
+
+      const skillBadge = (role.skill && role.skill.enabled)
+        ? `<span class="badge-skill" title="${escapeHtml(role.skill.description || '')}">🧭 SOP (${(role.skill.stages || []).length}阶段)</span>`
+        : '';
+
       return `
         <div class="role-card ${isActive ? 'active-role' : ''}">
           <div>
@@ -1289,6 +1299,8 @@ async function fetchRoles() {
               <span class="role-tag ${role.rag_enabled ? 'highlight' : ''}">
                 ${zoneTagText}
               </span>
+              ${ragBadge}
+              ${skillBadge}
             </div>
 
             <div class="role-prompt-preview" title="${escapeHtml(role.system_prompt)}">
@@ -1311,6 +1323,237 @@ async function fetchRoles() {
   } catch (err) {
     console.error("fetchRoles error:", err);
   }
+}
+
+// Preset SOP Workflows
+const SKILL_PRESETS = {
+  major_advisor: {
+    name: "四阶段高校招生与专业咨询SOP",
+    description: "从意向破冰到专业详述、就业前景及报考指导的引导式流程",
+    stages: [
+      {
+        stage_id: 1,
+        name: "考生意向与兴趣探索",
+        goal: "了解考生的文理科类、高考分数区间及感兴趣的专业大类",
+        instruction: "热情询问考生关注的学科方向与未来职业憧憬，引导明确目标。",
+        exit_condition: "当考生明确提出具体意向专业或咨询主题时过渡。"
+      },
+      {
+        stage_id: 2,
+        name: "专业建设权威详解 (严格原文)",
+        goal: "依据学校知识库权威资料，一字不改完整介绍该专业的师资、学科实力与培养方案",
+        instruction: "严格依据知识库内容，完整准确地输出专业建设文字，严禁删改或自主发挥！",
+        exit_condition: "完整输出官方专业建设介绍后过渡。"
+      },
+      {
+        stage_id: 3,
+        name: "就业前景与升学深造剖析",
+        goal: "结合官方数据介绍毕业去向、名企就业率与考研保研通道",
+        instruction: "客观解答就业去向和升学优势，消除考生与家长的顾虑。",
+        exit_condition: "解答完就业前景疑问后过渡。"
+      },
+      {
+        stage_id: 4,
+        name: "报考填报指导与寄语",
+        goal: "提供投档位次参考、选考科目要求与官方招生办联系方式",
+        instruction: "给予清晰的志愿填报建议，并送上诚挚的高考祝福与迎新寄语。",
+        exit_condition: "完成本轮咨询接待。"
+      }
+    ]
+  },
+  psychologist: {
+    name: "四阶段心理疏导与情绪修复SOP",
+    description: "基于认知行为与人本主义心理学的引导式咨询工作流",
+    stages: [
+      {
+        stage_id: 1,
+        name: "共情倾听与全然接纳",
+        goal: "接纳来访者当下情绪，给予安全感与陪伴感，严禁急于给建议或说教",
+        instruction: "深切共情对方的感受，用温柔语言肯定其不易，鼓励敞开心扉倾诉更多细节。",
+        exit_condition: "当对方充分宣泄了情绪并确认感到被理解时过渡。"
+      },
+      {
+        stage_id: 2,
+        name: "温和探寻诱因与困扰",
+        goal: "温和探寻引发情绪风暴的具体生活事件或思维压力源",
+        instruction: "以开放式提问轻柔询问：能跟我多讲讲是什么事情或想法让你觉得这么累吗？",
+        exit_condition: "当明确了引发负面情绪的具体诱因事件后过渡。"
+      },
+      {
+        stage_id: 3,
+        name: "认知重构与视角转换",
+        goal: "协助打破思维盲区，发现自身被忽视的力量与新的视角",
+        instruction: "肯定对方一路走来的坚韧，启发性提问：如果从另一个视角看，有没有可能...",
+        exit_condition: "当对方情绪明显舒缓并产生新的积极视角时过渡。"
+      },
+      {
+        stage_id: 4,
+        name: "微小行动与心理着陆",
+        goal: "提供一个此刻就能做的微小放松行动，赋能重拾掌控感",
+        instruction: "引导一个微小的身体着陆（如喝一杯温水、三次腹式深呼吸），并给予坚定的守候承诺。",
+        exit_condition: "完成本轮疏导，保持随时在线守候姿态。"
+      }
+    ]
+  },
+  socratic: {
+    name: "三阶段苏格拉底启发式教学SOP",
+    description: "通过层层追问与辩证启发引导学生自主发现本质",
+    stages: [
+      {
+        stage_id: 1,
+        name: "定义澄清与观点显露",
+        goal: "鼓励学生阐述对核心问题的初步认知与假设，不直接评判对错",
+        instruction: "温和请学生用自己的语言定义核心概念，展示真实思维过程。",
+        exit_condition: "当学生阐明其基本观点或假设后过渡。"
+      },
+      {
+        stage_id: 2,
+        name: "反例追问与认知碰撞",
+        goal: "通过精心构造的典型反例或极端场景，促使学生发现原有定义的局限与矛盾",
+        instruction: "提出启发式问题：如果出现XX情况，你的观点是否依然成立？引导自主思考。",
+        exit_condition: "当学生意识到矛盾并尝试修正思维时过渡。"
+      },
+      {
+        stage_id: 3,
+        name: "本质归纳与知识升华",
+        goal: "引导学生自主总结出更深刻、全面的本质规律与通用解法",
+        instruction: "肯定学生的探索精神，引导归纳出核心法则，并迁移应用到新情景。",
+        exit_condition: "完成启发教学闭环。"
+      }
+    ]
+  }
+};
+
+function updateRoleRagModeVisibility() {
+  const enabled = document.getElementById('role-rag-enabled').value === 'true';
+  const modeGroup = document.getElementById('role-rag-mode-group');
+  if (modeGroup) {
+    modeGroup.style.opacity = enabled ? '1' : '0.5';
+  }
+}
+
+function onRoleRagModeChanged() {
+  const mode = document.getElementById('role-rag-mode').value;
+  const tempInput = document.getElementById('role-temp');
+  const tempVal = document.getElementById('val-temp');
+  const hint = document.getElementById('role-rag-mode-hint');
+  if (mode === 'exact') {
+    if (tempInput) { tempInput.value = 0.0; if (tempVal) tempVal.textContent = '0'; }
+    if (hint) hint.textContent = '🎯 严格按知识库话术回复，严禁总结改写';
+  } else {
+    if (hint) hint.textContent = '🧠 结合常识口语化润色解答';
+  }
+}
+
+function toggleSkillConfig(enabled) {
+  const body = document.getElementById('skill-config-body');
+  if (body) {
+    body.style.display = enabled ? 'block' : 'none';
+  }
+  if (enabled) {
+    const container = document.getElementById('skill-stages-container');
+    if (container && container.children.length === 0) {
+      applySkillPreset('major_advisor');
+    }
+  }
+}
+
+function applySkillPreset(presetKey) {
+  if (!presetKey || !SKILL_PRESETS[presetKey]) return;
+  const p = SKILL_PRESETS[presetKey];
+  const nameInput = document.getElementById('role-skill-name');
+  const descInput = document.getElementById('role-skill-desc');
+  if (nameInput) nameInput.value = p.name;
+  if (descInput) descInput.value = p.description;
+
+  const container = document.getElementById('skill-stages-container');
+  if (container) {
+    container.innerHTML = '';
+    p.stages.forEach(s => addSkillStageRow(s));
+  }
+}
+
+function addSkillStageRow(data = {}) {
+  const container = document.getElementById('skill-stages-container');
+  if (!container) return;
+  const stageIdx = container.children.length + 1;
+  const row = document.createElement('div');
+  row.className = 'skill-stage-row';
+  row.innerHTML = `
+    <div class="skill-stage-row-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="skill-stage-badge">阶段 <span class="stage-num">${stageIdx}</span></span>
+        <input type="text" class="stage-name-input" value="${escapeHtml(data.name || '')}" placeholder="阶段名称（如：意向探索）" style="font-weight:600; font-size:13px; width:220px; padding:3px 6px;">
+      </div>
+      <button type="button" class="btn btn-sm btn-danger-outline" onclick="removeSkillStageRow(this)" style="padding:2px 6px; font-size:11px;">✕ 删除</button>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <div style="flex:1;">
+        <small style="color:#64748b; display:block; margin-bottom:2px;">🎯 阶段核心目标</small>
+        <input type="text" class="stage-goal-input" value="${escapeHtml(data.goal || '')}" placeholder="本阶段希望达成的具体目标" style="font-size:12px; width:100%; padding:3px 6px;">
+      </div>
+      <div style="flex:1;">
+        <small style="color:#64748b; display:block; margin-bottom:2px;">🔄 进入下一阶段条件</small>
+        <input type="text" class="stage-exit-input" value="${escapeHtml(data.exit_condition || '')}" placeholder="如：当用户明确表达意向后过渡" style="font-size:12px; width:100%; padding:3px 6px;">
+      </div>
+    </div>
+    <div>
+      <small style="color:#64748b; display:block; margin-bottom:2px;">📝 阶段执行指令策略</small>
+      <input type="text" class="stage-instr-input" value="${escapeHtml(data.instruction || '')}" placeholder="如：热情询问考生关注的学科方向，不要急于介绍具体方案" style="font-size:12px; width:100%; padding:3px 6px;">
+    </div>
+  `;
+  container.appendChild(row);
+}
+
+function removeSkillStageRow(btn) {
+  const row = btn.closest('.skill-stage-row');
+  if (row) {
+    row.remove();
+    const container = document.getElementById('skill-stages-container');
+    if (container) {
+      const rows = container.querySelectorAll('.skill-stage-row');
+      rows.forEach((r, idx) => {
+        const badge = r.querySelector('.stage-num');
+        if (badge) badge.textContent = (idx + 1);
+      });
+    }
+  }
+}
+
+function getSkillDataFromModal() {
+  const enabled = document.getElementById('role-skill-enabled').value === 'true';
+  if (!enabled) return null;
+
+  const name = document.getElementById('role-skill-name').value.trim() || "多阶段SOP工作流";
+  const desc = document.getElementById('role-skill-desc').value.trim() || "";
+  const container = document.getElementById('skill-stages-container');
+  const stages = [];
+
+  if (container) {
+    const rows = container.querySelectorAll('.skill-stage-row');
+    rows.forEach((r, idx) => {
+      const sName = r.querySelector('.stage-name-input').value.trim() || `阶段 ${idx + 1}`;
+      const sGoal = r.querySelector('.stage-goal-input').value.trim();
+      const sExit = r.querySelector('.stage-exit-input').value.trim();
+      const sInstr = r.querySelector('.stage-instr-input').value.trim();
+      stages.push({
+        stage_id: idx + 1,
+        name: sName,
+        goal: sGoal,
+        instruction: sInstr,
+        exit_condition: sExit
+      });
+    });
+  }
+
+  if (stages.length === 0) return null;
+
+  return {
+    enabled: true,
+    name: name,
+    description: desc,
+    stages: stages
+  };
 }
 
 function populateRoleZoneSelect(selectedZoneId) {
@@ -1352,6 +1595,17 @@ function openAddRoleModal() {
   document.getElementById('role-temp').value = 0.4;
   document.getElementById('val-temp').textContent = "0.4";
   document.getElementById('role-rag-enabled').value = "true";
+  document.getElementById('role-rag-mode').value = "smart";
+  updateRoleRagModeVisibility();
+  onRoleRagModeChanged();
+
+  document.getElementById('role-skill-enabled').value = "false";
+  toggleSkillConfig(false);
+  document.getElementById('role-skill-name').value = "";
+  document.getElementById('role-skill-desc').value = "";
+  const container = document.getElementById('skill-stages-container');
+  if (container) container.innerHTML = '';
+
   populateRoleZoneSelect("");
   document.getElementById('role-prompt').value = "你是小智专属AI助手，亲切生动地与用户交流。";
   document.getElementById('role-modal').style.display = 'flex';
@@ -1370,6 +1624,29 @@ function openEditRoleModal(roleId) {
   document.getElementById('role-temp').value = role.temperature;
   document.getElementById('val-temp').textContent = role.temperature;
   document.getElementById('role-rag-enabled').value = role.rag_enabled ? "true" : "false";
+  document.getElementById('role-rag-mode').value = role.rag_mode || "smart";
+  updateRoleRagModeVisibility();
+  onRoleRagModeChanged();
+
+  // Populate Skill SOP
+  const hasSkill = Boolean(role.skill && role.skill.enabled);
+  document.getElementById('role-skill-enabled').value = hasSkill ? "true" : "false";
+  toggleSkillConfig(hasSkill);
+  if (hasSkill) {
+    document.getElementById('role-skill-name').value = role.skill.name || "";
+    document.getElementById('role-skill-desc').value = role.skill.description || "";
+    const container = document.getElementById('skill-stages-container');
+    if (container) {
+      container.innerHTML = '';
+      (role.skill.stages || []).forEach(s => addSkillStageRow(s));
+    }
+  } else {
+    document.getElementById('role-skill-name').value = "";
+    document.getElementById('role-skill-desc').value = "";
+    const container = document.getElementById('skill-stages-container');
+    if (container) container.innerHTML = '';
+  }
+
   populateRoleZoneSelect(role.zone_id || "");
   document.getElementById('role-prompt').value = role.system_prompt;
   document.getElementById('role-modal').style.display = 'flex';
@@ -1388,8 +1665,10 @@ async function saveRoleData() {
     voice: document.getElementById('role-voice').value,
     temperature: parseFloat(document.getElementById('role-temp').value),
     rag_enabled: document.getElementById('role-rag-enabled').value === "true",
+    rag_mode: document.getElementById('role-rag-mode').value,
     zone_id: document.getElementById('role-zone-id') ? document.getElementById('role-zone-id').value : "",
     system_prompt: document.getElementById('role-prompt').value.trim(),
+    skill: getSkillDataFromModal(),
   };
 
   if (editId) roleData.id = editId;
@@ -1434,7 +1713,109 @@ async function deleteRole(roleId) {
   }
 }
 
-// ================= Web Simulator =================
+// ================= Web Simulator with Skill Workflow =================
+let currentSimStageId = 1;
+
+function onSimRoleChanged() {
+  const roleSelect = document.getElementById('sim-role-select');
+  if (!roleSelect) return;
+  const roleId = roleSelect.value;
+  const role = allRoles.find(r => r.id === roleId);
+  if (!role) return;
+
+  // Update simulator badges
+  const badgeContainer = document.getElementById('sim-role-badges');
+  if (badgeContainer) {
+    let badgesHtml = '';
+    if (role.rag_mode === 'exact') {
+      badgesHtml += '<span class="badge-exact" title="必须根据知识库默认话术原文回复，严禁自主发挥">🎯 严格原文复述</span>';
+    } else if (role.rag_enabled) {
+      badgesHtml += '<span class="badge-smart" title="结合知识库与常识智能润色总结解答">🧠 智能润色总结</span>';
+    }
+    if (role.skill && role.skill.enabled) {
+      badgesHtml += `<span class="badge-skill" title="${escapeHtml(role.skill.description || '')}">🧭 SOP (${(role.skill.stages || []).length}阶段)</span>`;
+    }
+    badgeContainer.innerHTML = badgesHtml;
+  }
+
+  // Update simulator Skill Banner
+  refreshSimSkillBanner(role);
+}
+
+function refreshSimSkillBanner(role, activeStageId = 1) {
+  const banner = document.getElementById('sim-skill-banner');
+  if (!banner) return;
+
+  if (!role || !role.skill || !role.skill.enabled || !role.skill.stages || role.skill.stages.length === 0) {
+    banner.style.display = 'none';
+    currentSimStageId = 1;
+    return;
+  }
+
+  banner.style.display = 'block';
+  document.getElementById('sim-skill-name').textContent = role.skill.name || "SOP 工作流";
+  document.getElementById('sim-skill-desc').textContent = role.skill.description ? `· ${role.skill.description}` : '';
+
+  currentSimStageId = activeStageId || 1;
+  const stagesContainer = document.getElementById('sim-skill-stages');
+  const stages = role.skill.stages;
+
+  stagesContainer.innerHTML = stages.map(s => {
+    const isActive = s.stage_id === currentSimStageId;
+    const isPassed = s.stage_id < currentSimStageId;
+    let cls = 'sim-skill-stage-pill';
+    if (isActive) cls += ' active';
+    else if (isPassed) cls += ' passed';
+
+    return `<div class="${cls}" onclick="selectSimStage(${s.stage_id})">
+      <span>${isPassed ? '✓' : s.stage_id}.</span>
+      <strong>${escapeHtml(s.name)}</strong>
+    </div>`;
+  }).join('');
+
+  // Update hint
+  const currentStageObj = stages.find(s => s.stage_id === currentSimStageId) || stages[0];
+  const hintEl = document.getElementById('sim-skill-active-hint');
+  if (hintEl && currentStageObj) {
+    hintEl.innerHTML = `👉 <strong>当前执行 [阶段 ${currentStageObj.stage_id} · ${escapeHtml(currentStageObj.name)}]</strong>：目标: ${escapeHtml(currentStageObj.goal || '推进流程')} ｜ 指令: ${escapeHtml(currentStageObj.instruction || '按此步骤引导')} (流转判定: ${escapeHtml(currentStageObj.exit_condition || '达成目标')})`;
+  }
+
+  // Update next stage button
+  const nextBtn = document.getElementById('btn-next-stage');
+  if (nextBtn) {
+    const nextStage = stages.find(s => s.stage_id === currentSimStageId + 1);
+    if (nextStage) {
+      nextBtn.disabled = false;
+      nextBtn.textContent = `⏭️ 推进至阶段 ${nextStage.stage_id}`;
+    } else {
+      nextBtn.disabled = true;
+      nextBtn.textContent = `🏁 已达终点阶段`;
+    }
+  }
+}
+
+function selectSimStage(stageId) {
+  const roleSelect = document.getElementById('sim-role-select');
+  const role = allRoles.find(r => r.id === roleSelect.value);
+  if (!role) return;
+  refreshSimSkillBanner(role, stageId);
+}
+
+function resetSimStage() {
+  selectSimStage(1);
+}
+
+function advanceSimStage() {
+  const roleSelect = document.getElementById('sim-role-select');
+  const role = allRoles.find(r => r.id === roleSelect.value);
+  if (!role || !role.skill || !role.skill.stages) return;
+  const nextId = currentSimStageId + 1;
+  const exists = role.skill.stages.find(s => s.stage_id === nextId);
+  if (exists) {
+    selectSimStage(nextId);
+  }
+}
+
 async function sendSimulation() {
   const input = document.getElementById('sim-input');
   const text = input.value.trim();
@@ -1466,22 +1847,45 @@ async function sendSimulation() {
     const res = await fetch('/api/chat/simulate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, role_id: selectedRoleId })
+      body: JSON.stringify({
+        text,
+        role_id: selectedRoleId,
+        stage_id: currentSimStageId,
+        session_id: "web_simulator"
+      })
     });
     const data = await res.json();
 
+    // RAG Tag
     let ragInfo = '';
+    const isExact = (data.rag_mode === 'exact');
     if (data.rag_matched && data.rag_matched.length > 0) {
-      ragInfo = `<div style="font-size:12px; color:#0284c7; background:#e0f2fe; padding:6px 10px; border-radius:6px; margin-top:8px;">
-        📖 命中知识区: ${data.rag_matched.map(m => `《${escapeHtml(m.title)}》${m.question ? `[问: ${escapeHtml(m.question)}]` : ''}`).join(', ')} (${data.metrics ? data.metrics.rag_ms : 0}ms)
+      const modeTag = isExact
+        ? `<span class="badge-exact" style="margin-right:6px;">🎯 严格原文复述</span>`
+        : `<span class="badge-smart" style="margin-right:6px;">🧠 智能润色总结</span>`;
+      ragInfo = `<div style="font-size:12px; color:#0369a1; background:#f0f9ff; border:1px solid #bae6fd; padding:6px 10px; border-radius:6px; margin-top:8px;">
+        ${modeTag}命中知识: ${data.rag_matched.map(m => `《${escapeHtml(m.title)}》${m.source_file_name ? ` (来自文件: ${escapeHtml(m.source_file_name)})` : ''}`).join(', ')} (${data.metrics ? data.metrics.rag_ms : 0}ms)
+      </div>`;
+    } else if (isExact) {
+      ragInfo = `<div style="font-size:12px; color:#b91c1c; background:#fef2f2; border:1px solid #fecaca; padding:6px 10px; border-radius:6px; margin-top:8px;">
+        <span class="badge-exact" style="margin-right:6px;">🎯 严格原文复述</span>知识库未命中相关档案，按严格模式执行官方标准拒答
+      </div>`;
+    }
+
+    // Skill Tag if present
+    let skillBadgeHtml = '';
+    if (data.skill_info && data.skill_info.enabled) {
+      skillBadgeHtml = `<div style="font-size:12px; color:#4338ca; background:#e0e7ff; padding:5px 8px; border-radius:6px; margin-top:6px; display:inline-flex; align-items:center; gap:6px;">
+        🧭 <strong>SOP流程 [阶段 ${data.skill_info.current_stage_id} · ${escapeHtml(data.skill_info.current_stage_name)}]</strong>: ${escapeHtml(data.skill_info.current_stage_goal || '')}
       </div>`;
     }
 
     aiDiv.innerHTML = `
       <div>${escapeHtml(data.assistant_reply || '')}</div>
       ${ragInfo}
+      ${skillBadgeHtml ? `<div>${skillBadgeHtml}</div>` : ''}
       <div class="sim-meta-pill">
-        ⚡ 首字: ${data.metrics ? data.metrics.ttft_ms : '-'}ms · 全链路: ${data.metrics ? data.metrics.total_ms : '-'}ms · 音色: ${data.role ? data.role.voice : '-'}
+        ⚡ 首字: ${data.metrics ? data.metrics.ttft_ms : '-'}ms · 全链路: ${data.metrics ? data.metrics.total_ms : '-'}ms · 音色: ${data.role ? data.role.voice : '-'} · 模式: ${isExact ? '严格原文(Temp 0.0)' : '智能润色'}
       </div>
     `;
     fetchLogs();
