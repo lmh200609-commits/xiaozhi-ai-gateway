@@ -32,20 +32,37 @@ if sys.stdout is None:
     class LoggerWriter:
         def __init__(self, filepath):
             self.filepath = filepath
+            self.encoding = "utf-8"
+            self.errors = "replace"
         def write(self, s):
             if not s or not self.filepath:
                 return
             try:
-                with open(self.filepath, "a", encoding="utf-8") as f:
+                with open(self.filepath, "a", encoding=self.encoding, errors=self.errors) as f:
                     f.write(s)
             except Exception:
                 pass
         def flush(self):
             pass
+        def isatty(self):
+            return False
+        def readable(self):
+            return False
+        def writable(self):
+            return True
+        def seekable(self):
+            return False
 
     log_file = PROJECT_ROOT / "gateway.log"
     sys.stdout = LoggerWriter(log_file)
     sys.stderr = LoggerWriter(log_file)
+
+if sys.stdin is None:
+    class DummyStdin:
+        def read(self, *args): return ""
+        def readline(self, *args): return ""
+        def isatty(self): return False
+    sys.stdin = DummyStdin()
 elif hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -187,7 +204,9 @@ def main():
             host=args.host,
             port=args.port,
             log_level="info",
-            access_log=False
+            access_log=False,
+            log_config=None,
+            use_colors=False
         )
         server = uvicorn.Server(uvicorn_config)
         server_thread = threading.Thread(target=server.run, daemon=True)
@@ -230,9 +249,9 @@ def main():
             import uvicorn
             if getattr(sys, "frozen", False):
                 from gateway.main import app
-                uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+                uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=None, use_colors=False)
             else:
-                uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
+                uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info", log_config=None, use_colors=False)
         except KeyboardInterrupt:
             print("\n[*] 网关服务已收到中断信号，正在退出...")
         except Exception as e:

@@ -131,6 +131,9 @@ def build():
     tokens_src = PROJECT_ROOT / "models" / "sense-voice" / "tokens.txt"
     if tokens_src.exists():
         shutil.copy(tokens_src, output_app_dir / "models" / "sense-voice" / "tokens.txt")
+    model_src = PROJECT_ROOT / "models" / "sense-voice" / "model.int8.onnx"
+    if model_src.exists():
+        shutil.copy(model_src, output_app_dir / "models" / "sense-voice" / "model.int8.onnx")
 
     # 5. One-click launcher scripts
     launcher_bat_gui = output_app_dir / "启动小智网关.bat"
