@@ -1445,114 +1445,369 @@ function onRoleRagModeChanged() {
   }
 }
 
+let currentModalSkill = null;
+let allSkillsLibrary = [];
+
 function toggleSkillConfig(enabled) {
   const body = document.getElementById('skill-config-body');
   if (body) {
     body.style.display = enabled ? 'block' : 'none';
   }
-  if (enabled) {
-    const container = document.getElementById('skill-stages-container');
-    if (container && container.children.length === 0) {
-      applySkillPreset('major_advisor');
+  if (enabled && !currentModalSkill) {
+    if (allSkillsLibrary.length > 0) {
+      bindSkillFromLibrary(allSkillsLibrary[0].filename);
     }
   }
 }
 
-function applySkillPreset(presetKey) {
-  if (!presetKey || !SKILL_PRESETS[presetKey]) return;
-  const p = SKILL_PRESETS[presetKey];
-  const nameInput = document.getElementById('role-skill-name');
-  const descInput = document.getElementById('role-skill-desc');
-  if (nameInput) nameInput.value = p.name;
-  if (descInput) descInput.value = p.description;
+async function loadSkillsLibrary() {
+  try {
+    const res = await fetch('/api/skills');
+    if (!res.ok) return;
+    const data = await res.json();
+    allSkillsLibrary = data.skills || [];
+    
+    // Update count badge
+    const badge = document.getElementById('skills-lib-count');
+    if (badge) badge.textContent = allSkillsLibrary.length;
 
-  const container = document.getElementById('skill-stages-container');
-  if (container) {
-    container.innerHTML = '';
-    p.stages.forEach(s => addSkillStageRow(s));
-  }
-}
-
-function addSkillStageRow(data = {}) {
-  const container = document.getElementById('skill-stages-container');
-  if (!container) return;
-  const stageIdx = container.children.length + 1;
-  const row = document.createElement('div');
-  row.className = 'skill-stage-row';
-  row.innerHTML = `
-    <div class="skill-stage-row-header">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span class="skill-stage-badge">阶段 <span class="stage-num">${stageIdx}</span></span>
-        <input type="text" class="stage-name-input" value="${escapeHtml(data.name || '')}" placeholder="阶段名称（如：意向探索）" style="font-weight:600; font-size:13px; width:220px; padding:3px 6px;">
-      </div>
-      <button type="button" class="btn btn-sm btn-danger-outline" onclick="removeSkillStageRow(this)" style="padding:2px 6px; font-size:11px;">✕ 删除</button>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <div style="flex:1;">
-        <small style="color:#64748b; display:block; margin-bottom:2px;">🎯 阶段核心目标</small>
-        <input type="text" class="stage-goal-input" value="${escapeHtml(data.goal || '')}" placeholder="本阶段希望达成的具体目标" style="font-size:12px; width:100%; padding:3px 6px;">
-      </div>
-      <div style="flex:1;">
-        <small style="color:#64748b; display:block; margin-bottom:2px;">🔄 进入下一阶段条件</small>
-        <input type="text" class="stage-exit-input" value="${escapeHtml(data.exit_condition || '')}" placeholder="如：当用户明确表达意向后过渡" style="font-size:12px; width:100%; padding:3px 6px;">
-      </div>
-    </div>
-    <div>
-      <small style="color:#64748b; display:block; margin-bottom:2px;">📝 阶段执行指令策略</small>
-      <input type="text" class="stage-instr-input" value="${escapeHtml(data.instruction || '')}" placeholder="如：热情询问考生关注的学科方向，不要急于介绍具体方案" style="font-size:12px; width:100%; padding:3px 6px;">
-    </div>
-  `;
-  container.appendChild(row);
-}
-
-function removeSkillStageRow(btn) {
-  const row = btn.closest('.skill-stage-row');
-  if (row) {
-    row.remove();
-    const container = document.getElementById('skill-stages-container');
-    if (container) {
-      const rows = container.querySelectorAll('.skill-stage-row');
-      rows.forEach((r, idx) => {
-        const badge = r.querySelector('.stage-num');
-        if (badge) badge.textContent = (idx + 1);
+    // Populate modal dropdown
+    const sel = document.getElementById('role-skill-library-select');
+    if (sel) {
+      let html = '<option value="">⚡ 选择已有技能快速套用...</option>';
+      allSkillsLibrary.forEach(s => {
+        html += `<option value="${escapeHtml(s.filename)}">📦 ${escapeHtml(s.name)} (${s.stage_count}阶段)</option>`;
       });
+      sel.innerHTML = html;
     }
+
+    // Render warehouse grid
+    renderSkillsWarehouseGrid();
+  } catch (err) {
+    console.error("Failed to load skills library:", err);
+  }
+}
+
+function renderModalSkillPreview() {
+  const activeCard = document.getElementById('skill-active-card');
+  const uploadZone = document.getElementById('skill-upload-zone');
+  const nameDisplay = document.getElementById('role-skill-name-display');
+  const stagesBadge = document.getElementById('role-skill-stages-badge');
+  const descDisplay = document.getElementById('role-skill-desc-display');
+  const pillsContainer = document.getElementById('skill-stages-pills');
+
+  if (currentModalSkill && currentModalSkill.stages && currentModalSkill.stages.length > 0) {
+    if (activeCard) activeCard.style.display = 'block';
+    if (uploadZone) uploadZone.style.display = 'none';
+    if (nameDisplay) nameDisplay.textContent = currentModalSkill.name || "未命名技能";
+    if (stagesBadge) stagesBadge.textContent = `${currentModalSkill.stages.length} 个阶段`;
+    if (descDisplay) descDisplay.textContent = currentModalSkill.description || "暂无描述";
+
+    if (pillsContainer) {
+      let html = '';
+      currentModalSkill.stages.forEach((s, idx) => {
+        html += `<span class="skill-stage-chip"><strong>${s.stage_id || idx+1}.</strong> ${escapeHtml(s.name || `阶段 ${idx+1}`)}</span>`;
+        if (idx < currentModalSkill.stages.length - 1) {
+          html += `<span class="skill-stage-arrow">→</span>`;
+        }
+      });
+      pillsContainer.innerHTML = html;
+    }
+  } else {
+    if (activeCard) activeCard.style.display = 'none';
+    if (uploadZone) uploadZone.style.display = 'block';
+  }
+}
+
+async function handleSkillFileSelected(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/skills/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const result = await res.json();
+    if (res.ok && result.skill) {
+      currentModalSkill = result.skill;
+      document.getElementById('role-skill-enabled').value = 'true';
+      toggleSkillConfig(true);
+      renderModalSkillPreview();
+      loadSkillsLibrary();
+      alert(`[✓] 成功解析并挂载 Skill: ${result.skill.name} (${result.skill.stages.length}个阶段)!`);
+    } else {
+      alert("上传解析 Skill 失败: " + (result.error || "格式不兼容"));
+    }
+  } catch (err) {
+    alert("上传出错: " + err);
+  } finally {
+    document.getElementById('skill-file-input').value = '';
+  }
+}
+
+function handleSkillDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function handleSkillDragLeave(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+}
+function handleSkillDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (e.dataTransfer && e.dataTransfer.files) {
+    handleSkillFileSelected(e.dataTransfer.files);
+  }
+}
+
+function bindSkillFromLibrary(filename) {
+  if (!filename) return;
+  const target = allSkillsLibrary.find(s => s.filename === filename);
+  if (target) {
+    currentModalSkill = {
+      enabled: true,
+      name: target.name,
+      description: target.description,
+      stages: target.stages,
+      filename: target.filename
+    };
+    document.getElementById('role-skill-enabled').value = 'true';
+    toggleSkillConfig(true);
+    renderModalSkillPreview();
+  }
+}
+
+function detachRoleSkill() {
+  currentModalSkill = null;
+  renderModalSkillPreview();
+}
+
+function exportRoleSkillFile() {
+  const roleId = document.getElementById('role-edit-id').value;
+  if (roleId) {
+    window.location.href = `/api/roles/${roleId}/skill/export`;
+  } else if (currentModalSkill) {
+    const lines = [
+      "---",
+      `name: ${currentModalSkill.name || "自定义技能"}`,
+      `description: ${currentModalSkill.description || ""}`,
+      "type: agent-workflow-sop",
+      "---",
+      "",
+      `# ${currentModalSkill.name || "自定义技能"}`,
+      "",
+      `> ${currentModalSkill.description || ""}`,
+      "",
+      "## 流程阶段 (Stages)",
+      ""
+    ];
+    (currentModalSkill.stages || []).forEach((s, idx) => {
+      lines.push(`### 阶段 ${idx + 1}: ${s.name || `阶段 ${idx + 1}`}`);
+      if (s.goal) lines.push(`- **核心目标**: ${s.goal}`);
+      if (s.exit_condition) lines.push(`- **进入下一阶段条件**: ${s.exit_condition}`);
+      if (s.instruction) lines.push(`- **阶段执行策略**: ${s.instruction}`);
+      lines.push("");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentModalSkill.name || "custom_skill"}.skill.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function openSkillEditorModal() {
+  const modal = document.getElementById('skill-editor-modal');
+  const txt = document.getElementById('skill-markdown-text');
+  if (!modal || !txt) return;
+
+  if (currentModalSkill && currentModalSkill.raw_markdown) {
+    txt.value = currentModalSkill.raw_markdown;
+  } else if (currentModalSkill) {
+    const lines = [
+      "---",
+      `name: ${currentModalSkill.name || "自定义技能"}`,
+      `description: ${currentModalSkill.description || ""}`,
+      "type: agent-workflow-sop",
+      "---",
+      "",
+      `# ${currentModalSkill.name || "自定义技能"}`,
+      "",
+      `> ${currentModalSkill.description || ""}`,
+      "",
+      "## 流程阶段 (Stages)",
+      ""
+    ];
+    (currentModalSkill.stages || []).forEach((s, idx) => {
+      lines.push(`### 阶段 ${idx + 1}: ${s.name || `阶段 ${idx + 1}`}`);
+      if (s.goal) lines.push(`- **核心目标**: ${s.goal}`);
+      if (s.exit_condition) lines.push(`- **进入下一阶段条件**: ${s.exit_condition}`);
+      if (s.instruction) lines.push(`- **阶段执行策略**: ${s.instruction}`);
+      lines.push("");
+    });
+    txt.value = lines.join("\n");
+  } else {
+    txt.value = `# 自定义 Agent 技能\n\n## 阶段 1: 问候与需求澄清\n- **核心目标**: 热情问候并了解用户意向\n- **进入下一阶段条件**: 用户明确表达需求时过渡\n- **阶段执行策略**: 亲切温和提问，直奔核心主题\n`;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closeSkillEditorModal() {
+  const modal = document.getElementById('skill-editor-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function saveSkillMarkdownText() {
+  const txt = document.getElementById('skill-markdown-text').value;
+  if (!txt.trim()) {
+    alert("内容不能为空");
+    return;
+  }
+  const blob = new Blob([txt], { type: "text/markdown;charset=utf-8" });
+  const formData = new FormData();
+  formData.append("file", blob, "edited.skill.md");
+
+  try {
+    const res = await fetch("/api/skills/upload", {
+      method: "POST",
+      body: formData
+    });
+    const result = await res.json();
+    if (res.ok && result.skill) {
+      currentModalSkill = result.skill;
+      document.getElementById('role-skill-enabled').value = 'true';
+      toggleSkillConfig(true);
+      renderModalSkillPreview();
+      closeSkillEditorModal();
+      loadSkillsLibrary();
+      alert(`[✓] 已成功解析并应用技能: ${result.skill.name} (${result.skill.stages.length}阶段)!`);
+    } else {
+      alert("解析失败: " + (result.error || "格式有误"));
+    }
+  } catch (err) {
+    alert("保存解析失败: " + err);
+  }
+}
+
+function switchRolesSubnav(mode) {
+  const btnRoles = document.getElementById('btn-subnav-roles');
+  const btnSkills = document.getElementById('btn-subnav-skills');
+  const viewRoles = document.getElementById('roles-subview-roles');
+  const viewSkills = document.getElementById('roles-subview-skills');
+
+  if (mode === 'roles') {
+    if (btnRoles) btnRoles.classList.add('active');
+    if (btnSkills) btnSkills.classList.remove('active');
+    if (viewRoles) viewRoles.style.display = 'block';
+    if (viewSkills) viewSkills.style.display = 'none';
+  } else {
+    if (btnRoles) btnRoles.classList.remove('active');
+    if (btnSkills) btnSkills.classList.add('active');
+    if (viewRoles) viewRoles.style.display = 'none';
+    if (viewSkills) viewSkills.style.display = 'block';
+    renderSkillsWarehouseGrid();
+  }
+}
+
+function renderSkillsWarehouseGrid() {
+  const container = document.getElementById('skills-warehouse-container');
+  if (!container) return;
+
+  if (allSkillsLibrary.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><p>暂无技能文件，请点击右上角上传 .skill.md 技能文件</p></div>';
+    return;
+  }
+
+  let html = '';
+  allSkillsLibrary.forEach(s => {
+    let pills = '';
+    (s.stages || []).forEach((st, idx) => {
+      pills += `<span class="skill-stage-chip" style="font-size:10px;">${st.stage_id || idx+1}. ${escapeHtml(st.name)}</span>`;
+    });
+
+    html += `
+      <div class="skill-warehouse-card">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+            <strong style="font-size:14px; color:#1e293b;">🧭 ${escapeHtml(s.name)}</strong>
+            <span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:11px;">${s.stage_count} 阶段</span>
+          </div>
+          <p style="font-size:12px; color:#64748b; line-height:1.5; margin-bottom:10px; min-height:36px;">
+            ${escapeHtml(s.description || '暂无描述')}
+          </p>
+          <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px;">
+            ${pills}
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:10px;">
+          <span style="font-size:11px; color:#94a3b8;">${s.filename}</span>
+          <div style="display:flex; gap:6px;">
+            <a href="/api/skills/${encodeURIComponent(s.filename)}/download" class="btn btn-sm btn-outline" style="text-decoration:none;" title="下载 Skill 文件">⬇️ 下载</a>
+            <button class="btn btn-sm btn-danger-light" onclick="deleteWarehouseSkill('${escapeHtml(s.filename)}')">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+async function handleWarehouseSkillUpload(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch('/api/skills/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const result = await res.json();
+    if (res.ok && result.skill) {
+      alert(`[✓] 技能 ${result.skill.name} 已成功导入技能仓库！`);
+      loadSkillsLibrary();
+    } else {
+      alert("导入失败: " + (result.error || "格式不兼容"));
+    }
+  } catch (err) {
+    alert("导入失败: " + err);
+  } finally {
+    document.getElementById('skill-warehouse-upload-input').value = '';
+  }
+}
+
+async function deleteWarehouseSkill(filename) {
+  if (!confirm(`确定要从技能库中删除 ${filename} 吗？`)) return;
+  try {
+    const res = await fetch(`/api/skills/${encodeURIComponent(filename)}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      loadSkillsLibrary();
+    } else {
+      alert("删除失败");
+    }
+  } catch (err) {
+    alert("删除出错: " + err);
   }
 }
 
 function getSkillDataFromModal() {
   const enabled = document.getElementById('role-skill-enabled').value === 'true';
-  if (!enabled) return null;
-
-  const name = document.getElementById('role-skill-name').value.trim() || "多阶段SOP工作流";
-  const desc = document.getElementById('role-skill-desc').value.trim() || "";
-  const container = document.getElementById('skill-stages-container');
-  const stages = [];
-
-  if (container) {
-    const rows = container.querySelectorAll('.skill-stage-row');
-    rows.forEach((r, idx) => {
-      const sName = r.querySelector('.stage-name-input').value.trim() || `阶段 ${idx + 1}`;
-      const sGoal = r.querySelector('.stage-goal-input').value.trim();
-      const sExit = r.querySelector('.stage-exit-input').value.trim();
-      const sInstr = r.querySelector('.stage-instr-input').value.trim();
-      stages.push({
-        stage_id: idx + 1,
-        name: sName,
-        goal: sGoal,
-        instruction: sInstr,
-        exit_condition: sExit
-      });
-    });
-  }
-
-  if (stages.length === 0) return null;
-
+  if (!enabled || !currentModalSkill) return null;
   return {
     enabled: true,
-    name: name,
-    description: desc,
-    stages: stages
+    name: currentModalSkill.name || "多阶段SOP工作流",
+    description: currentModalSkill.description || "",
+    stages: currentModalSkill.stages || [],
+    raw_markdown: currentModalSkill.raw_markdown || ""
   };
 }
 
@@ -1599,12 +1854,10 @@ function openAddRoleModal() {
   updateRoleRagModeVisibility();
   onRoleRagModeChanged();
 
+  currentModalSkill = null;
   document.getElementById('role-skill-enabled').value = "false";
   toggleSkillConfig(false);
-  document.getElementById('role-skill-name').value = "";
-  document.getElementById('role-skill-desc').value = "";
-  const container = document.getElementById('skill-stages-container');
-  if (container) container.innerHTML = '';
+  renderModalSkillPreview();
 
   populateRoleZoneSelect("");
   document.getElementById('role-prompt').value = "你是小智专属AI助手，亲切生动地与用户交流。";
@@ -1631,21 +1884,13 @@ function openEditRoleModal(roleId) {
   // Populate Skill SOP
   const hasSkill = Boolean(role.skill && role.skill.enabled);
   document.getElementById('role-skill-enabled').value = hasSkill ? "true" : "false";
-  toggleSkillConfig(hasSkill);
   if (hasSkill) {
-    document.getElementById('role-skill-name').value = role.skill.name || "";
-    document.getElementById('role-skill-desc').value = role.skill.description || "";
-    const container = document.getElementById('skill-stages-container');
-    if (container) {
-      container.innerHTML = '';
-      (role.skill.stages || []).forEach(s => addSkillStageRow(s));
-    }
+    currentModalSkill = JSON.parse(JSON.stringify(role.skill));
   } else {
-    document.getElementById('role-skill-name').value = "";
-    document.getElementById('role-skill-desc').value = "";
-    const container = document.getElementById('skill-stages-container');
-    if (container) container.innerHTML = '';
+    currentModalSkill = null;
   }
+  toggleSkillConfig(hasSkill);
+  renderModalSkillPreview();
 
   populateRoleZoneSelect(role.zone_id || "");
   document.getElementById('role-prompt').value = role.system_prompt;
@@ -2000,6 +2245,7 @@ function initApp() {
   fetchStatus();
   fetchZones();
   fetchRoles();
+  loadSkillsLibrary();
   fetchKnowledge();
   fetchVideos();
   fetchLogs();

@@ -29,6 +29,7 @@ from gateway.rag.knowledge_structurer import KnowledgeStructurer
 from gateway.rag.zone_manager import zone_manager
 from gateway.rag.video_manager import video_manager
 from gateway.roles.role_manager import role_manager
+from gateway.roles.skill_manager import skill_manager
 from gateway.agent.pc_tools import PC_TOOLS_DEFINITIONS, execute_pc_tool, execute_play_video, filter_tools_for_query
 
 app = FastAPI(title="Xiaozhi Hardware Gateway", version="1.0.0")
@@ -292,6 +293,111 @@ async def delete_role(role_id: str):
     if success:
         return {"status": "ok"}
     return JSONResponse(status_code=400, content={"error": "预设角色不可删除或角色不存在"})
+
+# ----------------- Agent Skills (技能库与文件管理) API -----------------
+
+@app.get("/api/skills")
+async def list_skills():
+    """获取技能仓库中所有已安装/上传的 Skill 列表"""
+    return {
+        "status": "ok",
+        "skills": skill_manager.list_skills()
+    }
+
+@app.post("/api/skills/upload")
+async def upload_skill_file(file: UploadFile = File(...)):
+    """上传任意 Agent Skill 文件 (.md, .skill.md, .json) 到技能库"""
+    try:
+        content = await file.read()
+        parsed = skill_manager.import_skill_file(file.filename, content)
+        return {
+            "status": "ok",
+            "skill": parsed,
+            "filename": parsed.get("filename")
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"解析 Skill 文件失败: {str(e)}"})
+
+@app.get("/api/skills/{filename}/download")
+async def download_skill_file(filename: str):
+    """下载特定 Skill 文件"""
+    content = skill_manager.get_skill_content(filename)
+    if content is None:
+        return JSONResponse(status_code=404, content={"error": "Skill 文件不存在"})
+    encoded_name = urllib.parse.quote(filename.encode("utf-8"))
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"}
+    )
+
+@app.delete("/api/skills/{filename}")
+async def delete_skill_file(filename: str):
+    """从技能库中删除指定 Skill 文件"""
+    success = skill_manager.delete_skill(filename)
+    if success:
+        return {"status": "ok"}
+    return JSONResponse(status_code=404, content={"error": "文件不存在"})
+
+@app.post("/api/roles/{role_id}/skill/upload")
+async def upload_skill_to_role(role_id: str, file: UploadFile = File(...)):
+    """直接为指定角色上传并挂载 Skill 文件"""
+    try:
+        content = await file.read()
+        parsed = skill_manager.import_skill_file(file.filename, content)
+        role = role_manager.update_role(role_id, {"skill": parsed})
+        if not role:
+            return JSONResponse(status_code=404, content={"error": "角色不存在"})
+        return {"status": "ok", "role": role, "skill": parsed}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"上传并挂载 Skill 失败: {str(e)}"})
+
+@app.post("/api/roles/{role_id}/skill/bind")
+async def bind_skill_to_role(role_id: str, req: Request):
+    """从技能库选择已有 Skill 文件挂载到角色"""
+    data = await req.json()
+    filename = data.get("filename")
+    if not filename:
+        return JSONResponse(status_code=400, content={"error": "缺少 filename 参数"})
+    content = skill_manager.get_skill_content(filename)
+    if content is None:
+        return JSONResponse(status_code=404, content={"error": "指定的 Skill 文件不存在"})
+    if filename.endswith(".json"):
+        parsed = skill_manager.parse_json(content, filename=filename)
+    else:
+        parsed = skill_manager.parse_markdown(content, filename=filename)
+    role = role_manager.update_role(role_id, {"skill": parsed})
+    if not role:
+        return JSONResponse(status_code=404, content={"error": "角色不存在"})
+    return {"status": "ok", "role": role, "skill": parsed}
+
+@app.delete("/api/roles/{role_id}/skill")
+async def unbind_skill_from_role(role_id: str):
+    """卸载角色的 Skill 技能"""
+    role = role_manager.update_role(role_id, {"skill": None})
+    if not role:
+        return JSONResponse(status_code=404, content={"error": "角色不存在"})
+    return {"status": "ok", "role": role}
+
+@app.get("/api/roles/{role_id}/skill/export")
+async def export_role_skill(role_id: str):
+    """导出角色当前绑定的 Skill 为 Markdown 文件"""
+    target = None
+    for r in role_manager.get_roles():
+        if r["id"] == role_id:
+            target = r
+            break
+    if not target or not target.get("skill"):
+        return JSONResponse(status_code=404, content={"error": "该角色未挂载任何 Skill"})
+    skill_data = target["skill"]
+    md = skill_manager.export_to_markdown(skill_data)
+    safe_name = f"{target.get('id', 'role')}_skill.md"
+    encoded_name = urllib.parse.quote(safe_name.encode("utf-8"))
+    return Response(
+        content=md.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"}
+    )
 
 # ----------------- Knowledge Zones (知识区) API -----------------
 
@@ -1319,7 +1425,14 @@ async def websocket_endpoint(websocket: WebSocket):
             return
 
         abort_event.clear()
-        t_start = time.time()
+        # Pre-ASR Energy & Duration Gate (Filter out sub-threshold noise & ambient clicks)
+        duration_sec = len(pcm_all) / 16000.0
+        if duration_sec < 0.35:
+            return
+        rms = float(np.sqrt(np.mean(pcm_all.astype(np.float32) ** 2)))
+        if rms < 160.0:
+            return
+
         # 1. ASR
         user_text, asr_cost_ms = asr.transcribe(pcm_all)
         if not user_text:
@@ -1330,6 +1443,12 @@ async def websocket_endpoint(websocket: WebSocket):
         pure_speech = re.sub(r'[\s。，、？！?!.,\-_~`]', '', user_text)
         if not pure_speech:
             print(f"[ASR] Discarded noise/dot utterance: '{user_text}'")
+            return
+
+        # Guard against phantom triggers ("我", "啊", "嗯", etc.) on ambient silence/short frames
+        PHANTOM_GUARD_TOKENS = {"我", "啊", "嗯", "呃", "哦", "欸", "呀", "吧", "呢", "哈", "呵", "你", "对", "是", "我我", "啊啊"}
+        if pure_speech in PHANTOM_GUARD_TOKENS and (duration_sec < 1.1 or rms < 450.0):
+            print(f"[ASR Guard] Filtered phantom noise token '{user_text}' (dur={duration_sec:.2f}s, rms={rms:.1f})")
             return
 
         print(f"[ASR] User said ({asr_cost_ms:.1f}ms): {user_text}")

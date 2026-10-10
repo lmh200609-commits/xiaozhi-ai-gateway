@@ -1433,30 +1433,214 @@ body {
   line-height: 1.4;
 }
 
-/* ================= Role Modal Skill Stage Editor ================= */
-.skill-stage-row {
-  background: #ffffff;
+/* ================= Agent Skill System & Modern Simplified Mount Card ================= */
+.skill-mount-card {
+  margin-top: 14px;
+  padding: 14px;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  border-radius: 10px;
 }
 
-.skill-stage-row-header {
+.skill-mount-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
-.skill-stage-badge {
-  background: #e2e8f0;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 4px;
+.skill-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+
+.skill-icon {
+  font-size: 24px;
+}
+
+.skill-main-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.skill-sub-title {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.skill-active-card {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #4f46e5;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.skill-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.skill-badge-type {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.skill-desc-text {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.skill-stages-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.skill-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.skill-stage-arrow {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.skill-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.btn-danger-light {
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-danger-light:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.skill-upload-zone {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skill-drop-area {
+  border: 2px dashed #93c5fd;
+  background: #f8fbff;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.skill-drop-area:hover, .skill-drop-area.drag-over {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.skill-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Sub-nav toggle tabs */
+.sub-nav-tabs {
+  display: flex;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.sub-nav-btn {
+  flex: 1;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.sub-nav-btn.active {
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Skill Warehouse Grid */
+.skills-warehouse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.skill-warehouse-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: all 0.2s;
+}
+
+.skill-warehouse-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.06);
+}
+
 
 

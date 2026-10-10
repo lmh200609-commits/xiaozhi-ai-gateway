@@ -211,17 +211,16 @@
         <!-- SUB-PANEL 1: 📄 权威文本知识库 -->
         <div id="subpanel-docs" class="zone-subpanel">
           <!-- Intelligent Upload Box -->
-          <div class="card" style="border: 2px dashed #bfdbfe; background: #fafdff;">
-            <div class="card-header">
-              <h2>📤 智能知识文档导入与原件档案仓 (Word / Markdown / PDF / 文本)</h2>
-              <span class="stat-label" id="upload-model-badge">✨ 物理原件持久化归档 · AI 自动蒸馏切片 · 切片全链路溯源</span>
+          <div class="card" style="border: 1px dashed #93c5fd; background: #f8fbff; margin-bottom: 14px; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 13px; color: #1e3a8a;">📤 知识文档归档入库</span>
+              <span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:11px;" id="upload-model-badge">原件实体持久化 · AI 智能切片</span>
             </div>
             
-            <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
-              <div class="upload-icon">📂</div>
-              <div class="upload-title">点击选择文件，或直接拖拽文件到这里归档入库</div>
-              <div class="upload-hint">支持 .docx (Word)、.md (Markdown)、.txt (文本)、.pdf、.csv、.json 格式 · 原始物理文件将持久化保存</div>
-              <div class="upload-tag" id="upload-engine-tag">✨ 文件保存入库并保留原件 · AI 智能蒸馏高频 FAQ 与核心切片 · 随时下载原件与级联删除</div>
+            <div class="upload-drop-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" style="padding: 16px 12px;">
+              <div class="upload-icon" style="font-size: 26px; margin-bottom: 4px;">📂</div>
+              <div class="upload-title" style="font-size: 13px; font-weight: 600;">点击选择或拖拽文件入库 (Word / Markdown / PDF / TXT)</div>
+              <div class="upload-hint" style="font-size: 11px; color: #64748b;">支持一键全量导入，原件持久化落盘，AI 自动切片并建立溯源映射</div>
               <input type="file" id="file-input" style="display:none;" accept=".docx,.md,.txt,.pdf,.csv,.json" onchange="handleFileSelected(event)">
             </div>
 
@@ -229,28 +228,23 @@
             <div id="upload-progress" class="upload-progress-box">
               <div class="spinner"></div>
               <div>
-                <div style="font-size:14px; font-weight:700; color:var(--primary);" id="upload-status-title">正在持久化归档并解析入库...</div>
-                <div style="font-size:12px; color:var(--text-muted);" id="upload-status-detail">正在写入物理档案、分析文档结构、提取高频 FAQ 问答与语义切片...</div>
+                <div style="font-size:13px; font-weight:700; color:var(--primary);" id="upload-status-title">正在持久化归档并解析入库...</div>
+                <div style="font-size:11px; color:var(--text-muted);" id="upload-status-detail">正在分析文档结构并生成语义切片...</div>
               </div>
             </div>
           </div>
 
           <!-- Knowledge Asset View Switcher -->
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-            <div class="knowledge-view-bar" style="display:flex; gap:8px;">
-              <button class="btn btn-sm btn-outline active" id="btn-view-files" onclick="switchDocViewMode('files')">
-                📁 原始文件档案仓 (<span id="view-files-count">0</span>)
-              </button>
-              <button class="btn btn-sm btn-outline" id="btn-view-chunks" onclick="switchDocViewMode('chunks')">
-                🧩 知识切片与溯源总览 (<span id="view-chunks-count">0</span>)
-              </button>
-              <button class="btn btn-sm btn-outline" id="btn-view-tester" onclick="switchDocViewMode('tester')">
-                🔍 检索演练与溯源验证
-              </button>
-            </div>
-            <div style="font-size:12px; color:#64748b;">
-              💡 提示：上传的文件永久保存在服务器，支持原件无损下载与全链路级联删除
-            </div>
+          <div class="sub-nav-tabs" style="margin-bottom: 14px;">
+            <button class="sub-nav-btn active" id="btn-view-files" onclick="switchDocViewMode('files')">
+              📁 原始文档仓库 (<span id="view-files-count">0</span>)
+            </button>
+            <button class="sub-nav-btn" id="btn-view-chunks" onclick="switchDocViewMode('chunks')">
+              🧩 知识切片与溯源 (<span id="view-chunks-count">0</span>)
+            </button>
+            <button class="sub-nav-btn" id="btn-view-tester" onclick="switchDocViewMode('tester')">
+              🔍 检索演练与验证
+            </button>
           </div>
 
           <!-- VIEW 1: 📁 原始文件档案仓 -->
@@ -368,15 +362,50 @@
         </div>
       </section>
 
-      <!-- ================= TAB 3: 🎭 角色与人设 ================= -->
+      <!-- ================= TAB 3: 🎭 角色与 Agent 技能库 ================= -->
       <section id="tab-roles" class="tab-panel">
-        <div class="card">
-          <div class="card-header">
-            <h2>🎭 角色人设与音色切换 (一键无缝生效)</h2>
-            <button class="btn btn-primary btn-sm" onclick="openAddRoleModal()">+ 新建自定义人设</button>
+        <div class="sub-nav-tabs">
+          <button class="sub-nav-btn active" id="btn-subnav-roles" onclick="switchRolesSubnav('roles')">
+            <span>🎭</span> 角色人设管理
+          </button>
+          <button class="sub-nav-btn" id="btn-subnav-skills" onclick="switchRolesSubnav('skills')">
+            <span>📦</span> Agent 技能库 (Skill Warehouse) <span class="badge" style="background:#e0e7ff; color:#4338ca; font-size:11px;" id="skills-lib-count">4</span>
+          </button>
+        </div>
+
+        <!-- VIEW A: 角色人设列表 -->
+        <div id="roles-subview-roles">
+          <div class="card">
+            <div class="card-header">
+              <h2>🎭 角色人设与音色切换 (一键无缝生效)</h2>
+              <button class="btn btn-primary btn-sm" onclick="openAddRoleModal()">+ 新建自定义人设</button>
+            </div>
+            <div id="roles-container" class="roles-grid">
+              <!-- Populated by JS -->
+            </div>
           </div>
-          <div id="roles-container" class="roles-grid">
-            <!-- Populated by JS -->
+        </div>
+
+        <!-- VIEW B: Agent 技能库 (Skill Warehouse) -->
+        <div id="roles-subview-skills" style="display: none;">
+          <div class="card">
+            <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h2>📦 Agent 技能库 (Skill Warehouse)</h2>
+                <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                  支持直接导入 GitHub 或社区下载的 .skill.md 技能文件，所有技能均可在编辑角色时一键挂载
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <input type="file" id="skill-warehouse-upload-input" accept=".md,.json,.txt,.yaml" style="display:none;" onchange="handleWarehouseSkillUpload(this.files)">
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('skill-warehouse-upload-input').click()">
+                  📥 上传技能文件 (.skill.md)
+                </button>
+              </div>
+            </div>
+            <div id="skills-warehouse-container" class="skills-warehouse-grid">
+              <!-- Populated by JS -->
+            </div>
           </div>
         </div>
       </section>
@@ -608,46 +637,58 @@
           <textarea id="role-prompt" rows="4" placeholder="详细设定 AI 语气、身份以及口语化限制..."></textarea>
         </div>
 
-        <!-- Role Skill SOP Guided Workflow Section -->
-        <div class="skill-config-card" style="margin-top: 14px; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-weight: 600; font-size: 14px; color: #1e293b;">🧭 角色 Skill 引导式工作流 (SOP)</span>
-              <span class="badge" style="background: #e0e7ff; color: #4338ca; font-size: 11px;">多阶段引导</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <select id="role-skill-enabled" onchange="toggleSkillConfig(this.value === 'true')" style="width: 110px; font-size: 12px; padding: 4px 8px;">
-                <option value="false">⚪ 未启用</option>
-                <option value="true">🟢 启用SOP</option>
-              </select>
-            </div>
-          </div>
-          <div id="skill-config-body" style="display: none; border-top: 1px dashed #cbd5e1; padding-top: 12px; margin-top: 8px;">
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label>技能方案名称</label>
-                <input type="text" id="role-skill-name" placeholder="如：高校招生与专业咨询SOP">
+        <!-- Role Skill SOP Guided Workflow Section (Agent Skill File Architecture) -->
+        <div class="skill-mount-card">
+          <div class="skill-mount-header">
+            <div class="skill-title-group">
+              <span class="skill-icon">🧭</span>
+              <div>
+                <div class="skill-main-title">Agent 技能与工作流 (Skill / SOP)</div>
+                <div class="skill-sub-title">支持直接上传 GitHub / 社区下载的 .skill.md 技能文件</div>
               </div>
-              <div class="form-group" style="width: 240px; margin-bottom: 0;">
-                <label>⚡ 快速套用预设模版</label>
-                <select id="role-skill-preset" onchange="applySkillPreset(this.value)">
-                  <option value="">⚡ 选择预设模版快速套用...</option>
-                  <option value="major_advisor">🎓 高校专业与招生引导 (4阶段)</option>
-                  <option value="psychologist">🌱 心理咨询与情绪修复 (4阶段)</option>
-                  <option value="socratic">📖 苏格拉底启发式教学 (3阶段)</option>
+            </div>
+            <select id="role-skill-enabled" onchange="toggleSkillConfig(this.value === 'true')" style="width: 125px; font-size: 12px; padding: 4px 8px;">
+              <option value="false">⚪ 未挂载 Skill</option>
+              <option value="true">🟢 已挂载 Skill</option>
+            </select>
+          </div>
+
+          <div id="skill-config-body" style="display: none;">
+            <!-- Active Mounted Skill Card Preview -->
+            <div id="skill-active-card" class="skill-active-card" style="display: none;">
+              <div class="skill-card-top">
+                <span class="skill-badge-type">📦 技能档案</span>
+                <strong id="role-skill-name-display">高校招生与专业咨询SOP</strong>
+                <span id="role-skill-stages-badge" class="badge" style="background: #e0e7ff; color: #4338ca; font-size: 11px;">4 个阶段</span>
+              </div>
+              <p id="role-skill-desc-display" class="skill-desc-text">从意向破冰到专业详述、就业前景及报考指导的引导式流程</p>
+              
+              <!-- Stages Stepper Pills -->
+              <div id="skill-stages-pills" class="skill-stages-pills"></div>
+
+              <!-- Skill Quick Action Buttons -->
+              <div class="skill-actions-row">
+                <button type="button" class="btn btn-sm btn-outline" onclick="openSkillEditorModal()" title="在线查看并编辑 Markdown 源码">📝 查看/编辑源码</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="exportRoleSkillFile()" title="一键下载为 .skill.md 文件">⬇️ 导出 .skill.md</button>
+                <button type="button" class="btn btn-sm btn-danger-light" onclick="detachRoleSkill()" title="卸载此角色的技能">❌ 卸载技能</button>
+              </div>
+            </div>
+
+            <!-- Upload & Select Zone (Shown when no skill is mounted or to replace) -->
+            <div id="skill-upload-zone" class="skill-upload-zone">
+              <div class="skill-drop-area" onclick="document.getElementById('skill-file-input').click()" ondragover="handleSkillDragOver(event)" ondragleave="handleSkillDragLeave(event)" ondrop="handleSkillDrop(event)">
+                <input type="file" id="skill-file-input" accept=".md,.json,.txt,.yaml" style="display:none;" onchange="handleSkillFileSelected(this.files)">
+                <span style="font-size: 24px;">📥</span>
+                <div style="font-size: 13px; font-weight: 600; color: #1e293b;">点击或拖拽上传 Skill 文件 (.skill.md / .json)</div>
+                <div style="font-size: 11px; color: #64748b;">支持直接导入在 GitHub 上下载或本地编写的 Agent 技能文件</div>
+              </div>
+
+              <div class="skill-select-row">
+                <span style="font-size: 12px; color: #64748b; white-space: nowrap;">⚡ 或从已有技能库挂载：</span>
+                <select id="role-skill-library-select" onchange="bindSkillFromLibrary(this.value)" style="flex: 1; font-size: 12px; padding: 5px 8px;">
+                  <option value="">⚡ 选择已有技能快速套用...</option>
                 </select>
               </div>
-            </div>
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label>流程简述与定位</label>
-              <input type="text" id="role-skill-desc" placeholder="简述该流程的核心逻辑与引导目标">
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label style="font-weight: 600; font-size: 13px; color: #334155; margin: 0;">📋 工作流阶段列表 (Stages)</label>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="addSkillStageRow()">+ 添加阶段</button>
-            </div>
-            <div id="skill-stages-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
-              <!-- Dynamic stage items -->
             </div>
           </div>
         </div>
@@ -655,6 +696,26 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeRoleModal()">取消</button>
         <button class="btn btn-primary" onclick="saveRoleData()">保存人设</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: View / Edit Skill Markdown -->
+  <div id="skill-editor-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 id="skill-editor-title">📝 Agent Skill 技能源码编辑器</h3>
+        <button class="close-btn" onclick="closeSkillEditorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+          在此处可直接编写、粘贴在 GitHub 复制的 Markdown Skill，或按需调整阶段指令。支持 YAML Frontmatter 与标准 Markdown 语法。
+        </p>
+        <textarea id="skill-markdown-text" rows="16" style="width: 100%; font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.5; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #0f172a; color: #f8fafc; resize: vertical; box-sizing: border-box;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeSkillEditorModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveSkillMarkdownText()">解析并应用此技能</button>
       </div>
     </div>
   </div>
