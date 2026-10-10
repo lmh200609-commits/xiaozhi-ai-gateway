@@ -8,6 +8,9 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+# Ensure project root is in sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 def run_tests():
     print("==================================================")
     print("🚀 [Step 1 Test] Knowledge Base File Warehouse & Traceability Test")

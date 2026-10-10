@@ -27,11 +27,11 @@ setup_env.bat
 1. 用文本编辑器打开 `gateway/config.json`：
    * 将 `relay_api_key` 替换为你可用的大模型 API 密钥。
    * 如有需要，可修改模型名称 `model_name` 或语音角色 `tts_voice`。
-2. 双击运行：
-   ```bat
-   start_gateway.bat
-   ```
-3. 系统将自动释放端口、同步网络并打开 Web 控制台：
+3. 一键启动网关 (任选以下任一方式)：
+   * **方式 A (推荐命令行)**：在根目录运行 `py -3.11 run.py` 或 `python run.py`
+   * **方式 B (便携双击)**：双击根目录下的 `start_gateway.bat`
+   * **方式 C (桌面快捷方式)**：运行 `python setup_desktop_launcher.py` 可在电脑桌面一键生成【启动小智AI网关】图标
+4. 系统将自动释放端口、同步网络并打开 Web 控制台：
    * 浏览器访问：[http://localhost:8001](http://localhost:8001)
 
 ---
@@ -69,7 +69,9 @@ setup_env.bat
 │   ├── config.example.json     # 网关配置模板 (脱敏)
 │   └── requirements.txt        # 完整 Python 依赖清单
 ├── xiaozhi-esp32/              # ESP32 硬件端固件源码 (C++ / ESP-IDF)
+├── run.py                      # 网关统一入口启动器 (命令行/终端直启)
+├── start_gateway.bat           # 便携式自适应网关启动脚本 (双击启动)
+├── setup_desktop_launcher.py   # 一键生成电脑桌面启动图标工具
 ├── setup_env.bat               # 新电脑一键部署环境批处理向导
-├── start_gateway.bat           # 便携式自适应网关启动脚本
 └── README.md                   # 项目工程说明文档
 ```

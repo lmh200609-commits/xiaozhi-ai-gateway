@@ -1,81 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+小智 AI 语音网关 - 脚本入口 (向下兼容代理)
+自动定位工程根目录并调起统一入口 run.py
+"""
 import os
 import sys
+from pathlib import Path
 
-# 1. Protect against Windows console encoding issues
-if sys.stdout and hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-import time
-import subprocess
-import threading
-import webbrowser
-
-# 2. Set cwd to project root
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 os.chdir(PROJECT_ROOT)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-print("=======================================================")
-print("   [Xiaozhi AI Voice Gateway v2.0]")
-print("   小智 AI 语音网关 & 跨设备服务平台")
-print("=======================================================")
-print(f"[*] 工作根目录: {PROJECT_ROOT}")
+import run
 
-# 3. Clean port 8001
-try:
-    from gateway.scripts.free_port import free_port
-    free_port(8001)
-except Exception as e:
-    print(f"[*] free_port notice: {e}")
-
-# 4. Check Wi-Fi IP and sync NVS configuration
-try:
-    import gateway.scripts.auto_sync_nvs as nvs_sync
-    local_ip = nvs_sync.sync_nvs()
-except Exception as e:
-    print(f"[*] auto_sync notice: {e}")
-
-# 5. Self-healing check for critical runtime dependencies
-try:
-    import multipart
-    import pypdf
-    import docx
-except ImportError:
-    print("[*] 正在自动补全基础文档与运行依赖 (python-multipart, pypdf, python-docx, aiofiles)...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "python-multipart", "pypdf", "python-docx", "aiofiles"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-# 6. Open Web Console in browser after 2.5s
-def open_browser():
-    time.sleep(2.5)
-    print("[*] 正在打开网页控制台: http://localhost:8001")
-    try:
-        webbrowser.open("http://localhost:8001")
-    except Exception:
-        pass
-
-threading.Thread(target=open_browser, daemon=True).start()
-
-# 7. Launch Uvicorn Gateway
-print("[*] 正在启动网关服务 (0.0.0.0:8001)...")
-print("[*] 【重要提示】请保持此黑框控制台运行，最小化即可，不要关闭！")
-print("=======================================================")
-
-try:
-    import uvicorn
-    uvicorn.run("gateway.main:app", host="0.0.0.0", port=8001, log_level="info")
-except Exception as e:
-    print(f"\n[!] 网关发生异常: {e}")
-    import traceback
-    traceback.print_exc()
-finally:
-    print("\n[!] 网关服务已停止。")
-    try:
-        input("按 Enter 回车键退出窗口...")
-    except Exception:
-        pass
+if __name__ == "__main__":
+    run.main()

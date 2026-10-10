@@ -64,7 +64,7 @@ exit /b 1
 :LAUNCH
 echo [*] Starting gateway with: %PY_CMD%
 echo.
-%PY_CMD% "gateway\scripts\run_gateway.py"
+%PY_CMD% "run.py" %*
 
 if errorlevel 1 (
     echo.

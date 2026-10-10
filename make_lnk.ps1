@@ -1,7 +1,13 @@
-﻿$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("C:\Users\liu200609/Desktop\启动小智AI网关.lnk")
-$Shortcut.TargetPath = "C:\Users\liu200609/Desktop\启动小智AI网关.bat"
-$Shortcut.WorkingDirectory = "d:\gemini 工作区\ai硬件工作区"
-$Shortcut.Description = "启动小智AI网关"
+$Desktop = [Environment]::GetFolderPath('Desktop')
+$ProjDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BatPath = Join-Path $ProjDir "start_gateway.bat"
+$LnkPath = Join-Path $Desktop "启动小智AI网关.lnk"
+
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut($LnkPath)
+$Shortcut.TargetPath = $BatPath
+$Shortcut.WorkingDirectory = $ProjDir
+$Shortcut.Description = "启动小智AI语音网关"
 $Shortcut.IconLocation = "shell32.dll,14"
 $Shortcut.Save()
+Write-Host "[✓] 桌面快捷方式已成功创建: $LnkPath"
