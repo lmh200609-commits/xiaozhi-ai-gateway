@@ -205,6 +205,13 @@ namespace XiaozhiInstaller {
                 string targetExe = null;
 
                 try {
+                    // 0. 关闭可能正在运行的旧网关实例，防止文件占用报错
+                    try {
+                        foreach (Process p in Process.GetProcessesByName("XiaozhiGateway")) {
+                            try { p.Kill(); p.WaitForExit(2000); } catch {}
+                        }
+                    } catch {}
+
                     if (!Directory.Exists(targetDir)) {
                         Directory.CreateDirectory(targetDir);
                     }
@@ -297,7 +304,7 @@ namespace XiaozhiInstaller {
                     MessageBox.Show(
                         "🎉 小智 AI 语音网关 已成功安装到：\n" + targetDir + "\n\n" +
                         (createShortcut ? "桌面快捷方式【小智AI语音网关】已就绪！\n" : "") +
-                        (autoLaunch ? "网关服务正在启动，稍后将自动调起浏览器控制台。" : ""),
+                        (autoLaunch ? "正在为您启动原生桌面应用程序..." : ""),
                         "安装完成",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information

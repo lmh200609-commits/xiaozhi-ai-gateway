@@ -154,7 +154,35 @@ def open_browser_delayed(url: str, delay: float = 2.0):
             pass
     threading.Thread(target=_open, daemon=True).start()
 
+def ensure_single_instance():
+    """Windows 单实例互斥体检测：防止用户多次双击导致端口冲突或进程死锁"""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        user32 = ctypes.windll.user32
+        ERROR_ALREADY_EXISTS = 183
+        SW_RESTORE = 9
+        mutex_name = "Global\\XiaozhiAIGateway_Desktop_Instance_Mutex"
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+            # 已经有实例在运行，尝试唤醒已有窗口
+            target_title = "小智 AI 语音网关 & 硬件服务平台"
+            hwnd = user32.FindWindowW(None, target_title)
+            if hwnd:
+                user32.ShowWindow(hwnd, SW_RESTORE)
+                user32.SetForegroundWindow(hwnd)
+            sys.exit(0)
+        return mutex
+    except SystemExit:
+        raise
+    except Exception:
+        return None
+
 def main():
+    _mutex = ensure_single_instance()
+
     parser = argparse.ArgumentParser(description="Xiaozhi AI Voice Gateway Launcher")
     parser.add_argument("--host", default="0.0.0.0", help="Binding host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8001, help="Binding port (default: 8001)")
@@ -181,6 +209,17 @@ def main():
         model_path = PROJECT_ROOT / "models" / "sense-voice" / "model.int8.onnx"
         if not model_path.exists():
             print("[*] 首次运行检测：正在检查并准备 SenseVoice 离线语音识别模型...")
+            if sys.platform == "win32" and getattr(sys, "frozen", False) and not args.no_gui:
+                try:
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(
+                        0,
+                        "首次运行提示:\n\n系统正在为您准备 SenseVoice 离线语音模型组件 (~230MB)。\n下载完成后将立即呈现控制台，请稍候约1分钟。",
+                        "小智 AI 语音网关 - 准备组件",
+                        0x40
+                    )
+                except Exception:
+                    pass
             check_and_download_models()
     except Exception as e:
         print(f"[*] 离线语音模型检查跳过: {e}")
@@ -223,19 +262,25 @@ def main():
 
         print(f"[✓] 网关核心服务已就绪！正在打开原生桌面应用程序窗口...")
         # 启动原生桌面窗口程序
-        import webview
-        window = webview.create_window(
-            title="小智 AI 语音网关 & 硬件服务平台",
-            url=f"http://127.0.0.1:{args.port}",
-            width=1280,
-            height=820,
-            min_size=(980, 650),
-            text_select=True,
-            zoomable=True
-        )
-        webview.start()
-        # 桌面窗口关闭时，退出后台 Uvicorn 服务
-        server.should_exit = True
+        try:
+            import webview
+            window = webview.create_window(
+                title="小智 AI 语音网关 & 硬件服务平台",
+                url=f"http://127.0.0.1:{args.port}",
+                width=1280,
+                height=820,
+                min_size=(980, 650),
+                text_select=True,
+                zoomable=True
+            )
+            webview.start()
+        except Exception as e:
+            print(f"[!] 原生桌面窗口启动异常: {e}，自动降级至默认浏览器模式...")
+            open_browser_delayed(f"http://localhost:{args.port}", delay=0.5)
+            while not server.should_exit:
+                time.sleep(1)
+        finally:
+            server.should_exit = True
     else:
         # 降级：控制台 + 浏览器模式
         if not args.no_browser:
@@ -273,8 +318,8 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     try:
         main()
-    except KeyboardInterrupt:
-        print("\n[*] 进程已安全退出。")
+    except (KeyboardInterrupt, SystemExit):
+        pass
     except Exception as e:
         import traceback
         err_msg = traceback.format_exc()
@@ -291,4 +336,5 @@ if __name__ == "__main__":
             pass
         if getattr(sys, "frozen", False) and sys.stdin:
             input("\n[!] 网关启动遇到异常，请按回车键关闭窗口...")
+
 

@@ -38,7 +38,7 @@ def build():
         "PIL", "PIL.Image", "PIL._imaging", "pyogg", "pyogg.opus", "pyogg.library_loader",
         "tokenizers", "requests", "webview", "pythonnet", "clr", "clr_loader", "proxy_tools", "bottle",
         "jieba", "pypdf", "docx", "serial", "esptool", "esp_idf_nvs_partition_gen",
-        "sqlite3", "numpy", "pydantic", "httpx",
+        "sqlite3", "numpy", "pydantic", "httpx", "psutil",
         "gateway.main", "gateway.config", "gateway.audio.opus_codec", "gateway.audio.vad",
         "gateway.asr.sense_voice", "gateway.tts.edge_tts_streamer", "gateway.llm.relay_client",
         "gateway.rag.knowledge_store", "gateway.rag.fts_engine", "gateway.rag.embedding",
@@ -70,6 +70,7 @@ def build():
         "--collect-all", "webview",
         "--collect-all", "pythonnet",
         "--collect-all", "clr_loader",
+        "--collect-all", "psutil",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
         "--exclude-module", "scipy",
@@ -201,12 +202,9 @@ def build():
     if zip_file.exists():
         zip_file.unlink()
 
-    with zipfile.ZipFile(zip_file, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    with zipfile.ZipFile(zip_file, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
         for root, dirs, files in os.walk(output_app_dir):
             for f in files:
-                # Exclude the 239MB onnx model from portable zip to stay within GitHub 100MB limit
-                if f.endswith(".onnx"):
-                    continue
                 full_path = Path(root) / f
                 arc_name = full_path.relative_to(dist_dir)
                 zf.write(full_path, arc_name)
