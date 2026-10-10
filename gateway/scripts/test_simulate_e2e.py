@@ -60,6 +60,8 @@ def test_simulate_exact_mode_and_skill():
             yield test_doc["content"], None, {"ttft_ms": 12.0}
         elif "未检索到与用户提问匹配的官方权威记录" in system_prompt or "未检索到官方记录指令" in system_prompt:
             yield "抱歉，官方知识库中暂未收录相关权威内容。", None, {"ttft_ms": 10.0}
+        elif "角色身份确认与开场引导交互指令" in system_prompt:
+            yield "是的！我是高校官方专业建设与招生咨询顾问。很高兴为您服务！请问您对哪个专业方向感兴趣？", None, {"ttft_ms": 15.0}
         else:
             yield f"这是当前阶段的模拟引导回复", None, {"ttft_ms": 15.0}
 
@@ -80,7 +82,7 @@ def test_simulate_exact_mode_and_skill():
         assert "严格知识库原文复述模式" in captured_calls[-1]["system_prompt"]
         print("  ✅ [PASS] Test A: Exact verbatim mode matched RAG, temperature=0.0, exact text returned.")
 
-        # B. Query major_advisor with unhit question in exact mode
+        # B1. Query major_advisor with unhit factual question in exact mode (should refuse standardly)
         res_unhit = client.post("/api/chat/simulate", json={
             "text": "明天天气怎么样，会下雨吗？",
             "role_id": "major_advisor",
@@ -91,7 +93,34 @@ def test_simulate_exact_mode_and_skill():
         assert data_unhit["rag_mode"] == "exact"
         assert "抱歉，官方知识库中暂未收录相关权威内容。" in data_unhit["assistant_reply"]
         assert captured_calls[-1]["temperature"] == 0.0
-        print("  ✅ [PASS] Test B: Exact verbatim mode unhit handled with standardized refusal, 0 hallucination.")
+        print("  ✅ [PASS] Test B1: Exact verbatim mode factual unhit handled with standardized refusal, 0 hallucination.")
+
+        # B2. Query major_advisor with persona confirmation in exact mode (should affirm identity, NOT refuse!)
+        res_persona = client.post("/api/chat/simulate", json={
+            "text": "你不是官方高校的那个招生顾问吗？",
+            "role_id": "major_advisor",
+            "session_id": "test_e2e_session"
+        })
+        assert res_persona.status_code == 200
+        data_persona = res_persona.json()
+        assert data_persona["rag_mode"] == "exact"
+        assert "角色身份确认与开场引导交互指令" in captured_calls[-1]["system_prompt"]
+        assert "抱歉，官方知识库中暂未收录相关权威内容。" not in data_persona["assistant_reply"]
+        assert "招生咨询顾问" in data_persona["assistant_reply"]
+        assert captured_calls[-1]["temperature"] == 0.2
+        print("  ✅ [PASS] Test B2: Persona confirmation '你不是官方高校的那个招生顾问吗？' correctly affirmed role identity without unhit refusal.")
+
+        # B3. Query major_advisor with greeting in exact mode (should greet & guide, NOT refuse!)
+        res_greet = client.post("/api/chat/simulate", json={
+            "text": "你好",
+            "role_id": "major_advisor",
+            "session_id": "test_e2e_session"
+        })
+        assert res_greet.status_code == 200
+        data_greet = res_greet.json()
+        assert "角色身份确认与开场引导交互指令" in captured_calls[-1]["system_prompt"]
+        assert "抱歉，官方知识库中暂未收录相关权威内容。" not in data_greet["assistant_reply"]
+        print("  ✅ [PASS] Test B3: Greeting '你好' correctly triggered persona greeting & stage guidance.")
 
         # C. Query psychologist with multi-stage workflow
         res_psy1 = client.post("/api/chat/simulate", json={

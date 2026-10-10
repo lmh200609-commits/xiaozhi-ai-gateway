@@ -257,6 +257,59 @@ async def get_roles():
         "active_role": role_manager.get_active_role()
     }
 
+async def broadcast_role_greeting_to_device(dev: dict, role: dict):
+    """
+    Sends an immediate TTS voice & display message to a connected ESP32 hardware device
+    announcing the active role persona and greeting.
+    """
+    ws = dev.get("ws")
+    if not ws:
+        return
+
+    lock = dev.get("tts_lock")
+    if lock:
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=2.0)
+        except (asyncio.TimeoutError, Exception):
+            print(f"[WS Role Sync] Device {dev.get('device_id')} busy with TTS, skipping greeting broadcast")
+            return
+
+    try:
+        session_id = dev.get("session_id") or f"sess-{int(time.time())}"
+        role_name = role.get("name", "小智")
+        greeting = role.get("greeting")
+        if not greeting:
+            if "招生" in role_name or "高校" in role_name:
+                greeting = f"您好！已切换为：{role_name}。欢迎咨询高校专业建设与培养方案！"
+            elif "导览" in role_name or "小铁" in role_name:
+                greeting = f"游客朋友好！已切换为：{role_name}，很高兴为您解说！"
+            elif "心理" in role_name:
+                greeting = f"您好，我是心语老师。生活里有什么想聊聊的，我都在这里陪伴您。"
+            elif "幼教" in role_name:
+                greeting = f"小朋友你好呀！我是小智老师，今天想听什么好听的故事呢？"
+            else:
+                greeting = f"您好！已为您切换为人设：{role_name}。"
+
+        voice = role.get("voice", config.tts_voice)
+        tts_streamer = EdgeTTSStreamer()
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "start"}))
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "sentence_start", "text": greeting}))
+
+        frame_count = 0
+        async for opus_frame, is_last in tts_streamer.text_to_opus_stream(greeting, voice=voice):
+            await ws.send_bytes(opus_frame)
+            frame_count += 1
+            if frame_count > 3:
+                await asyncio.sleep(0.045)
+
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "stop"}))
+        print(f"[WS Role Sync] Pushed role greeting to device {dev.get('device_id')}: '{greeting}' (voice: {voice})")
+    except Exception as e:
+        print(f"[WS Role Sync] Failed to send role greeting to device {dev.get('device_id')}: {e}")
+    finally:
+        if lock and lock.locked():
+            lock.release()
+
 @app.post("/api/roles/active")
 async def set_active_role(req: Request):
     data = await req.json()
@@ -269,10 +322,23 @@ async def set_active_role(req: Request):
         if active.get("zone_id"):
             zone_manager.set_active_zone(active["zone_id"])
         print(f"[Role] Switched active role to: {active['name']} ({active['id']}) [zone: {active.get('zone_id')}]")
+        
+        # 1. Reset stage tracking for all sessions so new role starts at Stage 1
+        session_skill_tracker.clear()
+
+        # 2. Broadcast role switch to Kiosk
         await broadcast_kiosk_event({
             "type": "role_switch",
             "role": active
         })
+
+        # 3. Synchronize connected hardware devices: reset conversation history & push role greeting
+        for mac, dev in active_devices.items():
+            if dev.get("ws") is not None:
+                if "llm" in dev and dev["llm"] is not None:
+                    dev["llm"].reset_history()
+                asyncio.create_task(broadcast_role_greeting_to_device(dev, active))
+
         return {"status": "ok", "active_role": active, "active_zone": zone_manager.get_active_zone()}
     return JSONResponse(status_code=404, content={"error": "Role not found"})
 
@@ -800,17 +866,81 @@ def get_session_stage(session_id: str, role: dict, requested_stage_id: Optional[
 
     return target_stage
 
+def is_identity_or_greeting_intent(user_text: str, role: dict) -> bool:
+    """
+    Determines if the user's input is a persona inquiry, role confirmation,
+    greeting, ice-breaker, or general capability inquiry, as opposed to a domain factual question.
+    """
+    clean = re.sub(r'[^\w\s\u4e00-\u9fff]', '', user_text).strip().lower()
+    if not clean:
+        return False
+
+    role_name = role.get("name", "").lower()
+    role_desc = role.get("description", "").lower()
+
+    # 1. Direct Greetings & Ice-breakers (short utterances)
+    greeting_exact = {
+        "你好", "您好", "你好啊", "你好呀", "嗨", "哈喽", "hello", "hi", "hey",
+        "早上好", "上午好", "中午好", "下午好", "晚上好", "早安", "晚安",
+        "在吗", "在不在", "有人吗", "听得到吗", "听到吗", "喂"
+    }
+    if clean in greeting_exact:
+        return True
+
+    # 2. Identity & Role Confirmation Patterns
+    # "你不是...吗", "你是不是...", "你是...对吧", "你是谁", "你叫什么"
+    identity_regexes = [
+        r"^你不是.*(吗|吧|啊)?$",
+        r"^你是不是.*(吗|吧|啊)?$",
+        r"^你是.*(吗|吧|啊|呢|对吧|对不对)$",
+        r"你是谁",
+        r"你叫什么",
+        r"怎么称呼",
+        r"自我介绍",
+        r"介绍(一下)?你(自己)?",
+        r"介绍(一下)?你的身份",
+        r"你的身份是",
+        r"你是什么(身份|角色|顾问|人|导览员|老师|医生|管家|助手)",
+        r"你(是|能)干(什么|嘛|啥)",
+        r"你能做(什么|啥)",
+        r"你有什么(功能|本领|作用)",
+        r"你能帮我(做什么|干什么|啥)",
+        r"怎么(向你)?咨询",
+        r"我想咨询(一下)?$",
+        r"咨询流程(是什么)?$",
+        r"你可以帮我什么"
+    ]
+    for pattern in identity_regexes:
+        if re.search(pattern, clean):
+            return True
+
+    # 3. Mentioning current role keywords in identity questions
+    role_keywords = set()
+    for token in ["招生", "高校", "专业建设", "顾问", "小铁", "博览园", "导览", "心理", "心语", "幼教", "智能管家", "星奈", "极客"]:
+        if token in role_name or token in role_desc:
+            role_keywords.add(token)
+
+    if any(k in clean for k in role_keywords):
+        if any(q in clean for q in ["你", "谁", "吗", "吧", "对吧", "对吗", "是不是", "做个介绍", "咨询"]):
+            domain_fact_markers = ["介绍学校", "建设情况", "培养方案", "课程设置", "学费", "录取线", "分数线", "机车展项", "展品", "几点开门", "门票"]
+            if not any(df in clean for df in domain_fact_markers):
+                return True
+
+    return False
+
 def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage: Optional[dict] = None) -> str:
     """
     Builds the complete dynamic system prompt taking into account:
     - Active role persona & voice constraints
     - RAG Mode: 'exact' (verbatim reproduction without modification) vs 'smart' (AI synthesis & paraphrasing)
+    - Persona & greeting intent recognition (preventing rigid RAG refusal on identity/greetings)
     - Role Skill: Multi-stage guided SOP workflows (psychologist, admissions advisor, etc.)
     - Bedtime accompaniment / storytelling mode
     - Strict prohibition of Markdown asterisks (* and **) for speech output
     """
     effective_prompt = role.get("system_prompt", config.system_prompt)
     rag_mode = role.get("rag_mode", "smart")
+    is_identity_query = is_identity_or_greeting_intent(user_text, role)
     is_railway_role = (
         role.get("id") == "railway_guide" or 
         "小铁" in role.get("name", "") or 
@@ -832,8 +962,23 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage:
 
     # 1. RAG Knowledge Injection Logic
     if rag_mode == "exact":
-        # Strict Verbatim Mode: 100% faithful reproduction, zero self-expansion, zero web search
-        if rag_matched:
+        if is_identity_query:
+            # Identity confirmation, greeting, or conversational ice-breaker (Bypass blunt unhit refusal!)
+            stage_hint = ""
+            if stage and stage.get("instruction"):
+                stage_hint = f"并遵循当前SOP阶段指引：{stage.get('instruction')}"
+            effective_prompt += (
+                f"\n\n=======================================================\n"
+                f"【角色身份确认与开场引导交互指令】\n"
+                f"1. 用户正在向你确认身份（例如询问你是否是招生顾问/导览员/专家）、打招呼或询问如何咨询。\n"
+                f"2. 请务必以【{role['name']}】的官方专业身份，亲切、自然、自信地正面回应并确认自己的身份（例如：'是的，我是高校官方专业建设与招生咨询顾问...'）！\n"
+                f"3. 绝对严禁输出任何拒答模板（绝对严禁输出'抱歉，知识库暂未收录'等话术）！绝对严禁声称自己只是普通AI或智能管家！\n"
+                f"4. 请以极具亲和力的口吻向用户介绍自己的服务范围，{stage_hint}，主动且热情地引导用户开启第一步咨询探讨。\n"
+                f"5. 输出要求：使用自然流畅口语，篇幅控制在2-3句话内直奔要点，严禁输出任何Markdown标记或星号（*或**）！\n"
+                f"=======================================================\n"
+            )
+        elif rag_matched:
+            # Strict Verbatim Mode: 100% faithful reproduction, zero self-expansion, zero web search
             docs_text = "\n\n".join([f"【官方知识库权威档案记录 {i+1}】\n{c['content']}" for i, c in enumerate(rag_matched)])
             effective_prompt += (
                 f"\n\n=======================================================\n"
@@ -1062,11 +1207,12 @@ async def chat_simulate(req: Request):
         if curr_idx != -1 and curr_idx + 1 < len(stages):
             next_stage_id = stages[curr_idx + 1].get("stage_id")
 
+    is_identity_query = is_identity_or_greeting_intent(user_text, role)
     effective_prompt = build_effective_prompt(role, user_text, rag_matched, stage=current_stage)
 
     rag_mode = role.get("rag_mode", "smart")
     if rag_mode == "exact":
-        effective_temp = 0.0
+        effective_temp = 0.2 if is_identity_query else 0.0
     elif is_story_intent:
         effective_temp = 0.70
     else:
@@ -1374,19 +1520,8 @@ async def websocket_endpoint(websocket: WebSocket):
     client_id = headers.get("client-id", "Unknown-Client")
     client_ip = websocket.client.host if websocket.client else "unknown"
 
-    device_info = {
-        "device_id": device_mac,
-        "client_id": client_id,
-        "ip": client_ip,
-        "connected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "last_active": time.strftime("%H:%M:%S"),
-        "ws": websocket,
-        "volume": 70,
-        "tools": []
-    }
-    active_devices[device_mac] = device_info
-    print(f"[WS] Device connected: {device_mac} from {client_ip}")
-
+    session_id = f"sess-{int(time.time())}"
+    tts_lock = asyncio.Lock()
     decoder = OpusDecoderWrapper(sample_rate=16000, channels=1)
     tts_streamer = EdgeTTSStreamer()
     asr = get_asr_engine()
@@ -1394,7 +1529,22 @@ async def websocket_endpoint(websocket: WebSocket):
     vad = EnergyVAD()
     abort_event = asyncio.Event()
 
-    session_id = f"sess-{int(time.time())}"
+    device_info = {
+        "device_id": device_mac,
+        "client_id": client_id,
+        "ip": client_ip,
+        "connected_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "last_active": time.strftime("%H:%M:%S"),
+        "ws": websocket,
+        "session_id": session_id,
+        "llm": llm,
+        "tts_lock": tts_lock,
+        "volume": 70,
+        "tools": []
+    }
+    active_devices[device_mac] = device_info
+    print(f"[WS] Device connected: {device_mac} from {client_ip}")
+
     is_tts_playing = False
     speech_task = None
     audio_buffer = []
@@ -1517,9 +1667,10 @@ async def websocket_endpoint(websocket: WebSocket):
             effective_voice = active_role.get("voice", config.tts_voice)
             story_keywords = ["故事", "睡前", "哄睡", "童话", "晚安", "睡觉", "睡不着", "摇篮", "寓言", "讲个", "讲一篇", "陪伴"]
             is_story_intent = any(k in user_text for k in story_keywords)
+            is_identity_query = is_identity_or_greeting_intent(user_text, active_role)
             rag_mode = active_role.get("rag_mode", "smart")
             if rag_mode == "exact":
-                effective_temp = 0.0
+                effective_temp = 0.2 if is_identity_query else 0.0
             elif is_story_intent:
                 effective_temp = 0.70
             else:
@@ -1886,6 +2037,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                 await websocket.send_text(json.dumps(make_mcp_call("self.screen.set_brightness", {"brightness": int(v)})))
                             elif act == "theme":
                                 await websocket.send_text(json.dumps(make_mcp_call("self.screen.set_theme", {"theme": str(v)})))
+
+                        # Synchronize active role greeting to device upon handshake
+                        active_role = role_manager.get_active_role()
+                        asyncio.create_task(broadcast_role_greeting_to_device(device_info, active_role))
 
                     # MCP tool registration from ESP32
                     elif msg_type == "mcp" or "tools" in data:

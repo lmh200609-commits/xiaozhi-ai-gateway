@@ -13,6 +13,7 @@ DEFAULT_ROLES = [
         "name": "中国·大安机车博览园 智慧导览员·小铁",
         "emoji": "🚂",
         "description": "亲切自豪大安铁道导览音色，精通大安机车博览园76台蒸汽机车方阵、朱德号/毛泽东号双子星功勋历史，贴心解说并联动大屏视频",
+        "greeting": "游客朋友您好！我是大安机车博览园智慧导览员小铁，很高兴为您解说！",
         "voice": "zh-CN-YunxiNeural",
         "temperature": 0.3,
         "rag_enabled": True,
@@ -44,6 +45,7 @@ DEFAULT_ROLES = [
         "name": "智能管家 (默认)",
         "emoji": "🤖",
         "description": "阳光少年音，具备设备硬件调控与日常贴心百科问答，口语简洁流畅",
+        "greeting": "你好呀！我是小智，你的智能管家，能帮你调音量、查天气、管理电脑桌面。",
         "voice": "zh-CN-YunxiNeural",
         "temperature": 0.7,
         "rag_enabled": False,
@@ -64,6 +66,7 @@ DEFAULT_ROLES = [
         "name": "高校专业建设与招生顾问",
         "emoji": "🎓",
         "description": "高校官方专业建设与招生权威咨询顾问，设定为【严格原文复述模式】，一字不差复述知识库内容，严禁自行发挥与联网猜测",
+        "greeting": "您好！我是高校官方专业建设与招生咨询顾问。欢迎咨询各专业建设情况与培养方案！",
         "voice": "zh-CN-YunjianNeural",
         "temperature": 0.0,
         "rag_enabled": True,
@@ -118,6 +121,7 @@ DEFAULT_ROLES = [
         "name": "心理咨询顾问·心语老师",
         "emoji": "🌱",
         "description": "温暖治愈心理咨询师，执行四阶段引导式疏导SOP（共情倾听->探寻诱因->认知重构->赋能行动），有温度地陪伴",
+        "greeting": "您好，我是心理咨询顾问心语老师。生活里有什么想聊聊的，我都在这里陪伴您。",
         "voice": "zh-CN-XiaoxiaoNeural",
         "temperature": 0.6,
         "rag_enabled": False,
@@ -171,6 +175,7 @@ DEFAULT_ROLES = [
         "name": "专属知识库客服",
         "emoji": "📚",
         "description": "亲切知性女声，优先检索并结合本地私有知识库回答产品与技术细节",
+        "greeting": "您好，我是专属知识库客服，欢迎咨询产品与技术细节。",
         "voice": "zh-CN-XiaoxiaoNeural",
         "temperature": 0.3,
         "rag_enabled": True,
@@ -191,6 +196,7 @@ DEFAULT_ROLES = [
         "name": "英语口语私教",
         "emoji": "🇺🇸",
         "description": "中英双语，温柔引导练习英文日常口语，纠正表达并启发思考",
+        "greeting": "Hello! I am your English tutor. Nice to meet you, let's practice speaking!",
         "voice": "zh-CN-YunxiNeural",
         "temperature": 0.7,
         "rag_enabled": False,
@@ -210,6 +216,7 @@ DEFAULT_ROLES = [
         "name": "二次元伴侣·星奈",
         "emoji": "✨",
         "description": "灵动少女音，性格微傲娇但内心温柔可爱的虚拟二次元伴侣",
+        "greeting": "哼，你终于来找我啦！我是星奈，今天想跟我聊点什么呢？",
         "voice": "zh-CN-XiaoyiNeural",
         "temperature": 0.85,
         "rag_enabled": False,
@@ -229,6 +236,7 @@ DEFAULT_ROLES = [
         "name": "硬核极客导师",
         "emoji": "⚡",
         "description": "沉稳男声，专注ESP32嵌入式、硬件架构、AI流式技术深入剖析",
+        "greeting": "你好，我是极客导师。今天想探讨哪项嵌入式或系统架构问题？",
         "voice": "zh-CN-YunjianNeural",
         "temperature": 0.4,
         "rag_enabled": True,
@@ -326,6 +334,7 @@ class RoleManager:
             "name": data.get("name", "自定义角色"),
             "emoji": data.get("emoji", "🎭"),
             "description": data.get("description", ""),
+            "greeting": data.get("greeting", ""),
             "voice": data.get("voice", "zh-CN-YunxiNeural"),
             "temperature": float(data.get("temperature", 0.7)),
             "rag_enabled": bool(data.get("rag_enabled", False)),
@@ -344,7 +353,7 @@ class RoleManager:
     def update_role(self, role_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for r in self.roles:
             if r["id"] == role_id:
-                for k in ["name", "emoji", "description", "voice", "temperature", "rag_enabled", "rag_mode", "rag_top_k", "zone_id", "system_prompt", "skill"]:
+                for k in ["name", "emoji", "description", "greeting", "voice", "temperature", "rag_enabled", "rag_mode", "rag_top_k", "zone_id", "system_prompt", "skill"]:
                     if k in data:
                         if k == "temperature":
                             r[k] = float(data[k])
