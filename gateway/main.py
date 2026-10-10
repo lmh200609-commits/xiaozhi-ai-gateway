@@ -1091,6 +1091,17 @@ def build_effective_prompt(role: dict, user_text: str, rag_matched: list, stage:
             )
             effective_prompt += skill_prompt
 
+    # 3. Universal Voice & Screen Text Cleanliness Guardrail (Zero Emoji & Zero Emotion Notes)
+    effective_prompt += (
+        "\n\n=======================================================\n"
+        "【语音播报与屏幕显示铁律 (TTS & Display Guardrail)】\n"
+        "1. 绝对严禁在回答中夹带任何 Emoji 表情符号（例如 👍, 😊, 🎉, 🎓, 🏫, 🤖, 🌸, 👏, 😄, 🌟 等）！\n"
+        "2. 绝对严禁在回答中夹带任何表情动作文字描写（例如 [微笑]、[鼓掌]、（笑）、(点点头)、[思考] 等括号注释）！\n"
+        "3. 语音引擎会将表情符号强行逐字朗读为“拇指向上”、“羞涩微笑”，且硬件小屏幕无法显示 Emoji 会出现方块乱码 [ ]。\n"
+        "4. 回答必须全部使用流畅、纯净的自然中文纯文本口语！\n"
+        "=======================================================\n"
+    )
+
     return effective_prompt
 
 # ----------------- Web Chat Simulator API -----------------
