@@ -35,6 +35,8 @@ def build():
         "uvicorn.lifespan", "uvicorn.lifespan.on",
         "fastapi", "starlette", "multipart", "aiofiles", "websockets",
         "sherpa_onnx", "onnxruntime", "miniaudio", "edge_tts", "fastembed",
+        "PIL", "PIL.Image", "PIL._imaging", "pyogg", "pyogg.opus", "pyogg.library_loader",
+        "tokenizers", "requests",
         "jieba", "pypdf", "docx", "serial", "esptool", "esp_idf_nvs_partition_gen",
         "sqlite3", "numpy", "pydantic", "httpx",
         "gateway.main", "gateway.config", "gateway.audio.opus_codec", "gateway.audio.vad",
@@ -62,11 +64,13 @@ def build():
         "--collect-all", "sherpa_onnx",
         "--collect-all", "fastembed",
         "--collect-all", "miniaudio",
+        "--collect-all", "pyogg",
+        "--collect-all", "PIL",
+        "--collect-all", "tokenizers",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
         "--exclude-module", "scipy",
         "--exclude-module", "pandas",
-        "--exclude-module", "PIL",
         "--exclude-module", "hf_xet",
         "--exclude-module", "unittest",
         "--exclude-module", "pytest",
@@ -205,11 +209,42 @@ def build():
     shutil.copy(zip_file, release_zip)
     print(f"  [✓] 已将免安装包同步至仓库发布目录: {release_zip.relative_to(PROJECT_ROOT)} ({zip_size_mb:.1f} MB)")
 
-    print("[5/5] 打包校验与就绪！")
+    print("[5/5] 正在编译原生图形化安装向导 (XiaozhiGateway-v2.0-Setup.exe)...")
+    csc_path = r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+    installer_exe = dist_dir / "XiaozhiGateway-v2.0-Setup.exe"
+    cs_src = PROJECT_ROOT / "gateway" / "scripts" / "installer_template.cs"
+
+    if os.path.exists(csc_path) and cs_src.exists():
+        csc_cmd = [
+            csc_path,
+            "/nologo",
+            "/optimize+",
+            "/target:winexe",
+            f"/out:{installer_exe}",
+            f"/resource:{zip_file},payload.zip",
+            "/reference:System.IO.Compression.FileSystem.dll,System.IO.Compression.dll,System.Windows.Forms.dll,System.Drawing.dll",
+            str(cs_src)
+        ]
+        csc_res = subprocess.run(csc_cmd)
+        if csc_res.returncode == 0:
+            installer_size_mb = installer_exe.stat().st_size / (1024 * 1024)
+            print(f"  [✓] 原生安装向导生成成功: {installer_exe.name} ({installer_size_mb:.1f} MB)")
+            release_installer = release_dir / "XiaozhiGateway-v2.0-Setup.exe"
+            shutil.copy(installer_exe, release_installer)
+            print(f"  [✓] 已同步安装包至发布目录: {release_installer.relative_to(PROJECT_ROOT)}")
+        else:
+            print("[!] 编译安装向导失败！")
+    else:
+        print("[!] 找不到 csc.exe 或 installer_template.cs，跳过安装向导编译")
+
     print("=" * 64)
-    print(f"🎉 纯净空白版打包已完成！发布路径: {zip_file}")
+    print(f"🎉 纯净空白版打包已完成！")
+    print(f"   便携版: {zip_file}")
+    if (dist_dir / "XiaozhiGateway-v2.0-Setup.exe").exists():
+        print(f"   安装包: {dist_dir / 'XiaozhiGateway-v2.0-Setup.exe'}")
     print("=" * 64)
     return True
+
 
 if __name__ == "__main__":
     build()

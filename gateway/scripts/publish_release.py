@@ -129,7 +129,7 @@ def publish():
     base_dir = Path(__file__).resolve().parent.parent.parent
     files_to_upload = [
         (base_dir / "dist" / "XiaozhiGateway-v2.0-Setup.exe", "XiaozhiGateway-v2.0-Setup.exe", "application/octet-stream"),
-        (base_dir / "release" / "XiaozhiGateway-v2.0-Vanilla.zip", "XiaozhiGateway-v2.0-Vanilla.zip", "application/zip")
+        (base_dir / "dist" / "XiaozhiGateway-v2.0-Vanilla.zip", "XiaozhiGateway-v2.0-Vanilla.zip", "application/zip")
     ]
 
     for file_path, asset_name, content_type in files_to_upload:

@@ -170,8 +170,32 @@ def main():
         print(f"\n[!] 网关服务异常退出: {e}")
         import traceback
         traceback.print_exc()
+        try:
+            with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
+                traceback.print_exc(file=f)
+        except Exception:
+            pass
+        if getattr(sys, "frozen", False):
+            input("\n[!] 网关运行遇到异常，请按回车键关闭窗口...")
     finally:
         print("\n[!] 网关服务已停止。")
 
 if __name__ == "__main__":
-    main()
+    import multiprocessing
+    multiprocessing.freeze_support()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[*] 进程已安全退出。")
+    except Exception as e:
+        import traceback
+        print(f"\n[!] 启动失败: {e}")
+        traceback.print_exc()
+        try:
+            with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
+                traceback.print_exc(file=f)
+        except Exception:
+            pass
+        if getattr(sys, "frozen", False):
+            input("\n[!] 网关启动遇到异常，请按回车键关闭窗口...")
+
