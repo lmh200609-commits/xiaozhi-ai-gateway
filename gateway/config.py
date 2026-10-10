@@ -22,9 +22,7 @@ class GatewayConfig(BaseModel):
     relay_api_key: str = ""
     model_name: str = "deepseek-chat"
     system_prompt: str = (
-        "你是小智AI硬件语音助手。请用简明、生动、口语化且有亲和力的中文回答用户。"
-        "因为你的回答会直接转为语音在开发板喇叭播放，切忌使用Markdown表格、复杂代码块或冗长列表，控制在1-3句话内直奔要点。"
-        "若用户要求调节音量、屏幕亮度或切换主题，你可以直接调用设备端提供的工具。"
+        "你是小智AI硬件语音助手。因为你的回答会直接转为语音在开发板喇叭播放，切忌使用Markdown表格、复杂代码块或冗长列表。若用户要求调节音量、屏幕亮度或切换主题，你可以直接调用设备端提供的工具。"
     )
     temperature: float = 0.7
 
