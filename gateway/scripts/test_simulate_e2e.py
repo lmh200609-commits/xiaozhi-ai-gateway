@@ -65,7 +65,9 @@ def test_simulate_exact_mode_and_skill():
         else:
             yield f"这是当前阶段的模拟引导回复", None, {"ttft_ms": 15.0}
 
-    with patch("gateway.llm.relay_client.RelayLLMClient.stream_chat", mock_stream_chat):
+    patcher = patch("gateway.llm.relay_client.RelayLLMClient.stream_chat", mock_stream_chat)
+    patcher.start()
+    try:
         # A. Query major_advisor with matching question
         res = client.post("/api/chat/simulate", json={
             "text": "请你介绍学校专业建设情况",
@@ -168,9 +170,11 @@ def test_simulate_exact_mode_and_skill():
             assert data_auto["skill_info"]["current_stage_id"] == 2, "Must automatically step to Stage 2"
             print("  ✅ [PASS] Test D: [NEXT_STAGE] tag stripped and stage automatically advanced.")
 
-    # Clean up test document
-    knowledge_store.delete_document(doc_id)
-    print("  ✅ [PASS] Test cleanup: removed temporary document.")
+    finally:
+        patcher.stop()
+        # Clean up test document
+        knowledge_store.delete_document(doc_id)
+        print("  ✅ [PASS] Test cleanup: removed temporary document.")
 
     # E. Test Manual Document Physical Archive & Lossless Download
     res_man = client.post("/api/knowledge", json={
