@@ -21,7 +21,7 @@ def test_simulate_exact_mode_and_skill():
     test_doc = {
         "title": "软件工程专业建设成果报告",
         "category": "专业介绍",
-        "content": "大连东软信息学院软件工程专业是首批国家级一流本科专业建设点，建有国家级软件工程实验教学示范中心，依托东软产业优势，实施TOPCARES一体化人才培养模式。",
+        "content": "软件工程专业是国家级一流本科专业建设点，建有现代软件工程实验教学中心，实施产教融合一体化人才培养模式。",
         "zone_id": "default_zone",
         "source_file_name": "软件工程专业建设成果报告.md"
     }
@@ -56,12 +56,12 @@ def test_simulate_exact_mode_and_skill():
             "temperature": temperature
         })
         # If exact mode and hit, return verbatim chunk
-        if "严格知识库原文复述模式" in system_prompt and "大连东软信息学院软件工程专业" in system_prompt:
+        if ("最高优先级执行指令：官方权威档案忠实复述" in system_prompt or "严格知识库原文复述模式" in system_prompt) and "软件工程专业" in system_prompt:
             yield test_doc["content"], None, {"ttft_ms": 12.0}
-        elif "未检索到与用户提问匹配的官方权威记录" in system_prompt or "未检索到官方记录指令" in system_prompt:
-            yield "抱歉，官方知识库中暂未收录相关权威内容。", None, {"ttft_ms": 10.0}
         elif "角色身份确认与开场引导交互指令" in system_prompt:
             yield "是的！我是高校官方专业建设与招生咨询顾问。很高兴为您服务！请问您对哪个专业方向感兴趣？", None, {"ttft_ms": 15.0}
+        elif "咨询未收录档案应答指令" in system_prompt or "未检索到与用户提问匹配的官方权威记录" in system_prompt:
+            yield "抱歉，官方知识库中暂未收录相关权威内容。", None, {"ttft_ms": 10.0}
         else:
             yield f"这是当前阶段的模拟引导回复", None, {"ttft_ms": 15.0}
 
@@ -79,7 +79,7 @@ def test_simulate_exact_mode_and_skill():
         assert data["rag_matched"][0]["source_file_name"] == "软件工程专业建设成果报告.md"
         assert data["assistant_reply"] == test_doc["content"]
         assert captured_calls[-1]["temperature"] == 0.0, f"Expected temperature 0.0, got {captured_calls[-1]['temperature']}"
-        assert "严格知识库原文复述模式" in captured_calls[-1]["system_prompt"]
+        assert ("官方权威档案" in captured_calls[-1]["system_prompt"] or "严格知识库原文复述模式" in captured_calls[-1]["system_prompt"])
         print("  ✅ [PASS] Test A: Exact verbatim mode matched RAG, temperature=0.0, exact text returned.")
 
         # B1. Query major_advisor with unhit factual question in exact mode (should refuse standardly)
