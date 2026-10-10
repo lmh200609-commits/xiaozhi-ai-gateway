@@ -96,7 +96,13 @@ def setup_vanilla():
     manifest_file.parent.mkdir(parents=True, exist_ok=True)
     with open(manifest_file, "w", encoding="utf-8") as f:
         json.dump([], f, ensure_ascii=False, indent=2)
-    print("  [✓] Cleaned videos manifest (videos_manifest.json -> [])")
+    # 6. Reset config.json to clean vanilla defaults
+    example_cfg = BASE_DIR / "gateway" / "config.example.json"
+    if example_cfg.exists():
+        shutil.copy(example_cfg, BASE_DIR / "gateway" / "config.json")
+        if (BASE_DIR / "config.json").exists():
+            shutil.copy(example_cfg, BASE_DIR / "config.json")
+        print("  [✓] Reset config.json to blank vanilla defaults (API key empty)")
 
     print("[✓] Vanilla clean edition data prepared successfully!")
 

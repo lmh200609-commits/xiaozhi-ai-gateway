@@ -36,7 +36,7 @@ def build():
         "fastapi", "starlette", "multipart", "aiofiles", "websockets",
         "sherpa_onnx", "onnxruntime", "miniaudio", "edge_tts", "fastembed",
         "PIL", "PIL.Image", "PIL._imaging", "pyogg", "pyogg.opus", "pyogg.library_loader",
-        "tokenizers", "requests",
+        "tokenizers", "requests", "webview", "pythonnet", "clr", "clr_loader", "proxy_tools", "bottle",
         "jieba", "pypdf", "docx", "serial", "esptool", "esp_idf_nvs_partition_gen",
         "sqlite3", "numpy", "pydantic", "httpx",
         "gateway.main", "gateway.config", "gateway.audio.opus_codec", "gateway.audio.vad",
@@ -53,7 +53,7 @@ def build():
         "--noconfirm",
         "--clean",
         "--onedir",
-        "--console",
+        "--windowed",
         "--name", "XiaozhiGateway",
         "--distpath", str(dist_dir),
         "--workpath", str(build_dir),
@@ -67,6 +67,9 @@ def build():
         "--collect-all", "pyogg",
         "--collect-all", "PIL",
         "--collect-all", "tokenizers",
+        "--collect-all", "webview",
+        "--collect-all", "pythonnet",
+        "--collect-all", "clr_loader",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
         "--exclude-module", "scipy",
@@ -129,19 +132,25 @@ def build():
     if tokens_src.exists():
         shutil.copy(tokens_src, output_app_dir / "models" / "sense-voice" / "tokens.txt")
 
-    # 5. One-click launcher script
-    launcher_bat = output_app_dir / "启动小智网关.bat"
-    launcher_bat.write_text(
+    # 5. One-click launcher scripts
+    launcher_bat_gui = output_app_dir / "启动小智网关.bat"
+    launcher_bat_gui.write_text(
+        "@echo off\r\n"
+        "cd /d \"%~dp0\"\r\n"
+        "start XiaozhiGateway.exe\r\n",
+        encoding="utf-8"
+    )
+
+    launcher_bat_console = output_app_dir / "启动小智网关(控制台模式).bat"
+    launcher_bat_console.write_text(
         "@echo off\r\n"
         "chcp 65001 >nul\r\n"
-        "title 小智 AI 语音网关 (Xiaozhi AI Gateway)\r\n"
+        "title 小智 AI 语音网关 - 控制台调试模式\r\n"
         "cd /d \"%~dp0\"\r\n"
         "echo ============================================================\r\n"
-        "echo    🚀 正在启动小智 AI 语音网关 (独立免安装运行版)\r\n"
+        "echo    🚀 正在以控制台调试模式启动小智 AI 语音网关\r\n"
         "echo ============================================================\r\n"
-        "echo [*] 本窗口请保持运行，最小化即可，不要关闭！\r\n"
-        "echo [*] 正在拉起服务...\r\n"
-        "XiaozhiGateway.exe\r\n"
+        "XiaozhiGateway.exe --no-gui\r\n"
         "pause\r\n",
         encoding="utf-8"
     )
@@ -159,7 +168,7 @@ def build():
         "echo 正在从 ModelScope 国内高速镜像拉取模型文件 (~239MB)...\r\n"
         "powershell -Command \"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('https://modelscope.cn/models/poloniumrock/SenseVoiceSmallOnnx/resolve/master/model.int8.onnx', 'models/sense-voice/model.int8.onnx')\"\r\n"
         "if exist models\\sense-voice\\model.int8.onnx (\r\n"
-        "    echo [✓] 模型下载完成！您可以直接双击 [启动小智网关.bat] 运行！\r\n"
+        "    echo [✓] 模型下载完成！您可以直接运行 XiaozhiGateway.exe！\r\n"
         ") else (\r\n"
         "    echo [!] 下载遇到问题，请检查网络连接！\r\n"
         ")\r\n"
@@ -171,14 +180,14 @@ def build():
     readme = output_app_dir / "README_使用说明.txt"
     readme.write_text(
         "================================================================\n"
-        "       小智 AI 语音网关 - 纯净便携免安装版 (v2.0-Vanilla)\n"
+        "       小智 AI 语音网关 - 纯净原生桌面应用程序 (v2.0-Vanilla)\n"
         "================================================================\n"
         "【快速上手说明】\n"
-        "1. 双击运行【启动小智网关.bat】或【XiaozhiGateway.exe】。\n"
-        "2. 初次运行时，系统会自动补全离线语音识别模型 (如已包含则直接秒启)。\n"
-        "3. 启动成功后，会自动在浏览器中打开控制台：http://localhost:8001\n"
-        "4. 本版本为纯净空白版，已内置【专属知识库客服】角色。\n"
-        "5. 您可以在 Web 控制台的【知识库管理】中上传您自己的 Word、PDF、Markdown 资料。\n"
+        "1. 直接双击运行【XiaozhiGateway.exe】或桌面图标【小智AI语音网关】。\n"
+        "2. 程序将直接以原生桌面应用程序窗口启动，体验与普通电脑客户端软件完全一致！\n"
+        "3. 本版本为纯净空白版，大模型 API 密钥已留空，请在系统设置中填入您自己的 API Key。\n"
+        "4. 本版本已内置【专属知识库客服】角色，并支持在界面中新建或删除自定义人设。\n"
+        "5. 如需在命令行查看实时调试日志，可运行【启动小智网关(控制台模式).bat】。\n"
         "6. 硬件设备 (ESP32) 连接至网关 IP 即可享受流畅语音对话！\n"
         "================================================================\n",
         encoding="utf-8"

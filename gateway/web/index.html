@@ -693,9 +693,14 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeRoleModal()">取消</button>
-        <button class="btn btn-primary" onclick="saveRoleData()">保存人设</button>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <button id="btn-delete-role-modal" type="button" class="btn btn-danger-outline" onclick="deleteCurrentModalRole()" style="display: none;">🗑️ 删除此人设</button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closeRoleModal()">取消</button>
+          <button type="button" class="btn btn-primary" onclick="saveRoleData()">保存人设</button>
+        </div>
       </div>
     </div>
   </div>

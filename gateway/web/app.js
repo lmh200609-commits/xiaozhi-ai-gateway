@@ -1314,7 +1314,7 @@ async function fetchRoles() {
             </div>
             <div style="display:flex; gap:6px;">
               <button class="btn btn-secondary btn-sm" onclick="openEditRoleModal('${role.id}')">✏️ 编辑</button>
-              ${!role.is_builtin ? `<button class="btn btn-danger-outline btn-sm" onclick="deleteRole('${role.id}')">🗑️</button>` : ''}
+              ${!role.is_builtin ? `<button class="btn btn-danger-outline btn-sm" onclick="deleteRole('${role.id}')" title="删除此人设">🗑️ 删除</button>` : ''}
             </div>
           </div>
         </div>
@@ -1861,6 +1861,8 @@ function openAddRoleModal() {
 
   populateRoleZoneSelect("");
   document.getElementById('role-prompt').value = "你是小智专属AI助手，亲切生动地与用户交流。";
+  const delBtn = document.getElementById('btn-delete-role-modal');
+  if (delBtn) delBtn.style.display = 'none';
   document.getElementById('role-modal').style.display = 'flex';
 }
 
@@ -1894,6 +1896,8 @@ function openEditRoleModal(roleId) {
 
   populateRoleZoneSelect(role.zone_id || "");
   document.getElementById('role-prompt').value = role.system_prompt;
+  const delBtn = document.getElementById('btn-delete-role-modal');
+  if (delBtn) delBtn.style.display = role.is_builtin ? 'none' : 'inline-block';
   document.getElementById('role-modal').style.display = 'flex';
 }
 
@@ -1943,10 +1947,33 @@ async function saveRoleData() {
 }
 
 async function deleteRole(roleId) {
-  if (!confirm("确定要删除此自定义人设吗？")) return;
+  const role = allRoles.find(r => r.id === roleId);
+  const name = role ? role.name : "此人设";
+  if (!confirm(`确定要彻底删除人设【${name}】吗？`)) return;
   try {
     const res = await fetch(`/api/roles/${roleId}`, { method: 'DELETE' });
     if (res.ok) {
+      fetchRoles();
+      fetchStatus();
+    } else {
+      const err = await res.json();
+      alert(err.error || "无法删除");
+    }
+  } catch (err) {
+    alert("删除失败: " + err);
+  }
+}
+
+async function deleteCurrentModalRole() {
+  const roleId = document.getElementById('role-edit-id').value;
+  if (!roleId) return;
+  const role = allRoles.find(r => r.id === roleId);
+  const name = role ? role.name : "此人设";
+  if (!confirm(`确定要彻底删除人设【${name}】吗？`)) return;
+  try {
+    const res = await fetch(`/api/roles/${roleId}`, { method: 'DELETE' });
+    if (res.ok) {
+      closeRoleModal();
       fetchRoles();
       fetchStatus();
     } else {

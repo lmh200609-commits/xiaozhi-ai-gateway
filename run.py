@@ -18,15 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-# 1. Windows 控制台字符编码安全重定向 (防 GBK 乱码与 Unicode 崩溃)
-if sys.stdout and hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-# 2. 定位项目绝对根目录，并优先加入 sys.path
+# 1. 定位项目绝对根目录，并优先加入 sys.path
 if getattr(sys, "frozen", False):
     PROJECT_ROOT = Path(sys.executable).resolve().parent
 else:
@@ -35,7 +27,34 @@ os.chdir(PROJECT_ROOT)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# 2. Windows 控制台字符编码安全重定向 (防无控制台时 NoneType 崩溃并支持静默日志)
+if sys.stdout is None:
+    class LoggerWriter:
+        def __init__(self, filepath):
+            self.filepath = filepath
+        def write(self, s):
+            if not s or not self.filepath:
+                return
+            try:
+                with open(self.filepath, "a", encoding="utf-8") as f:
+                    f.write(s)
+            except Exception:
+                pass
+        def flush(self):
+            pass
+
+    log_file = PROJECT_ROOT / "gateway.log"
+    sys.stdout = LoggerWriter(log_file)
+    sys.stderr = LoggerWriter(log_file)
+elif hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import argparse
+import socket
 import subprocess
 import threading
 import time
@@ -124,6 +143,7 @@ def main():
     parser.add_argument("--port", type=int, default=8001, help="Binding port (default: 8001)")
     parser.add_argument("--reload", action="store_true", help="Enable uvicorn hot-reload")
     parser.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
+    parser.add_argument("--no-gui", action="store_true", help="Do not launch native desktop GUI window, run in console mode")
     args = parser.parse_args()
 
     # 1. 打印横幅
@@ -148,37 +168,86 @@ def main():
     except Exception as e:
         print(f"[*] 离线语音模型检查跳过: {e}")
 
-    # 5. 延时调起浏览器
-    if not args.no_browser:
-        open_browser_delayed(f"http://localhost:{args.port}", delay=2.5)
-
-    # 6. 启动 Uvicorn 服务
-    print("[*] 正在启动网关核心进程...")
-    print("[*] 【重要提示】请保持此黑框窗口运行，最小化即可，不要关闭！")
-    print("=" * 64)
-
-    try:
-        import uvicorn
-        if getattr(sys, "frozen", False):
-            from gateway.main import app
-            uvicorn.run(app, host=args.host, port=args.port, log_level="info")
-        else:
-            uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
-    except KeyboardInterrupt:
-        print("\n[*] 网关服务已收到中断信号，正在退出...")
-    except Exception as e:
-        print(f"\n[!] 网关服务异常退出: {e}")
-        import traceback
-        traceback.print_exc()
+    # 5. 检测是否支持原生桌面窗口 (pywebview)
+    has_webview = False
+    if not args.no_gui:
         try:
-            with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
-                traceback.print_exc(file=f)
-        except Exception:
-            pass
-        if getattr(sys, "frozen", False):
-            input("\n[!] 网关运行遇到异常，请按回车键关闭窗口...")
-    finally:
-        print("\n[!] 网关服务已停止。")
+            import webview
+            has_webview = True
+        except Exception as e:
+            print(f"[*] 未检测到原生窗口引擎或不可用: {e}，将以浏览器模式启动")
+
+    if has_webview:
+        print("[*] 正在启动小智网关核心服务及原生桌面应用程序...")
+        import uvicorn
+        from gateway.main import app
+
+        uvicorn_config = uvicorn.Config(
+            app=app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            access_log=False
+        )
+        server = uvicorn.Server(uvicorn_config)
+        server_thread = threading.Thread(target=server.run, daemon=True)
+        server_thread.start()
+
+        # 等待后端服务端口监听就绪
+        for _ in range(60):
+            try:
+                s = socket.create_connection(("127.0.0.1", args.port), timeout=0.1)
+                s.close()
+                break
+            except Exception:
+                time.sleep(0.1)
+
+        print(f"[✓] 网关核心服务已就绪！正在打开原生桌面应用程序窗口...")
+        # 启动原生桌面窗口程序
+        import webview
+        window = webview.create_window(
+            title="小智 AI 语音网关 & 硬件服务平台",
+            url=f"http://127.0.0.1:{args.port}",
+            width=1280,
+            height=820,
+            min_size=(980, 650),
+            text_select=True,
+            zoomable=True
+        )
+        webview.start()
+        # 桌面窗口关闭时，退出后台 Uvicorn 服务
+        server.should_exit = True
+    else:
+        # 降级：控制台 + 浏览器模式
+        if not args.no_browser:
+            open_browser_delayed(f"http://localhost:{args.port}", delay=2.5)
+
+        print("[*] 正在启动网关核心进程...")
+        print("[*] 【重要提示】请保持此黑框窗口运行，最小化即可，不要关闭！")
+        print("=" * 64)
+
+        try:
+            import uvicorn
+            if getattr(sys, "frozen", False):
+                from gateway.main import app
+                uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+            else:
+                uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
+        except KeyboardInterrupt:
+            print("\n[*] 网关服务已收到中断信号，正在退出...")
+        except Exception as e:
+            print(f"\n[!] 网关服务异常退出: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
+                    traceback.print_exc(file=f)
+            except Exception:
+                pass
+            if getattr(sys, "frozen", False) and sys.stdin:
+                input("\n[!] 网关运行遇到异常，请按回车键关闭窗口...")
+        finally:
+            print("\n[!] 网关服务已停止。")
 
 if __name__ == "__main__":
     import multiprocessing
@@ -189,13 +258,18 @@ if __name__ == "__main__":
         print("\n[*] 进程已安全退出。")
     except Exception as e:
         import traceback
-        print(f"\n[!] 启动失败: {e}")
-        traceback.print_exc()
+        err_msg = traceback.format_exc()
         try:
             with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
-                traceback.print_exc(file=f)
+                f.write(err_msg)
         except Exception:
             pass
-        if getattr(sys, "frozen", False):
+        # 弹窗提示，避免静默关闭用户不知道原因
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"小智 AI 语音网关启动异常:\n\n{e}\n\n详细错误已记录至: crash.log", "小智网关启动异常", 0x10)
+        except Exception:
+            pass
+        if getattr(sys, "frozen", False) and sys.stdin:
             input("\n[!] 网关启动遇到异常，请按回车键关闭窗口...")
 
