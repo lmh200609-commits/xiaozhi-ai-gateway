@@ -14,7 +14,10 @@ if hasattr(sys.stdout, "reconfigure"):
 from pathlib import Path
 import urllib.request
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
 MODEL_DIR = BASE_DIR / "models" / "sense-voice"
 MODEL_FILE = MODEL_DIR / "model.int8.onnx"
 TOKENS_FILE = MODEL_DIR / "tokens.txt"

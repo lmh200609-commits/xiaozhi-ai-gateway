@@ -29,6 +29,11 @@ try:
 except Exception:
     video_manager = None
 
+try:
+    from gateway.config import DATA_DIR
+except Exception:
+    DATA_DIR = None
+
 PC_TOOLS_DEFINITIONS = [
     {
         "name": "open_software",
@@ -405,7 +410,7 @@ def find_local_video(keyword: str) -> Optional[str]:
             return matched["file_path"]
 
     video_dirs = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "videos")),
+        str(DATA_DIR / "videos") if DATA_DIR else os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "videos")),
         os.path.expanduser("~/Desktop"),
         os.path.expanduser("~/Videos"),
         os.path.expanduser("~/Downloads"),

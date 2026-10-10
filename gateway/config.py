@@ -66,11 +66,15 @@ class GatewayConfig(BaseModel):
                         cfg.asr_model_path = str(BASE_DIR / cfg.asr_model_path)
                     elif Path(default_model).is_file():
                         cfg.asr_model_path = default_model
+                    elif (BASE_DIR / "_internal" / "models" / "sense-voice" / "model.int8.onnx").is_file():
+                        cfg.asr_model_path = str(BASE_DIR / "_internal" / "models" / "sense-voice" / "model.int8.onnx")
                 if not Path(cfg.asr_tokens_path).is_file():
                     if (BASE_DIR / cfg.asr_tokens_path).is_file():
                         cfg.asr_tokens_path = str(BASE_DIR / cfg.asr_tokens_path)
                     elif Path(default_tokens).is_file():
                         cfg.asr_tokens_path = default_tokens
+                    elif (BASE_DIR / "_internal" / "models" / "sense-voice" / "tokens.txt").is_file():
+                        cfg.asr_tokens_path = str(BASE_DIR / "_internal" / "models" / "sense-voice" / "tokens.txt")
                 return cfg
             except Exception as e:
                 print(f"[Config] Error loading config.json, using defaults: {e}")

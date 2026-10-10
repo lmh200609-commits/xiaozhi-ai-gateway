@@ -86,14 +86,14 @@ class KnowledgeStore:
 
         cols_docs = [r[1] for r in c.execute("PRAGMA table_info(documents)").fetchall()]
         if "zone_id" not in cols_docs:
-            c.execute("ALTER TABLE documents ADD COLUMN zone_id TEXT DEFAULT 'baicheng_railway'")
+            c.execute("ALTER TABLE documents ADD COLUMN zone_id TEXT DEFAULT 'default_zone'")
         if "zone_name" not in cols_docs:
-            c.execute("ALTER TABLE documents ADD COLUMN zone_name TEXT DEFAULT '中国·大安机车博览园知识区'")
+            c.execute("ALTER TABLE documents ADD COLUMN zone_name TEXT DEFAULT '默认通用知识区'")
         if "file_size" not in cols_docs:
             c.execute("ALTER TABLE documents ADD COLUMN file_size INTEGER DEFAULT 0")
         if "file_path" not in cols_docs:
             c.execute("ALTER TABLE documents ADD COLUMN file_path TEXT DEFAULT ''")
-        c.execute("UPDATE documents SET zone_id = 'baicheng_railway', zone_name = '中国·大安机车博览园知识区' WHERE zone_id IS NULL OR zone_id = '' OR zone_name = '白城火车园区知识区'")
+        c.execute("UPDATE documents SET zone_id = 'default_zone', zone_name = '默认通用知识区' WHERE zone_id IS NULL OR zone_id = ''")
         conn.commit()
 
         # Migrate un-embedded legacy chunks if any exist

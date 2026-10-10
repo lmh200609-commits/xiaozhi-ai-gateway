@@ -221,10 +221,18 @@ namespace XiaozhiInstaller {
                             stream.CopyTo(fs);
                         }
 
-                        // 2. 解压并完整写入目标目录
+                        // 2. 解压并完整写入目标目录 (自动去重顶层目录，防止多重嵌套)
                         using (ZipArchive archive = ZipFile.OpenRead(tempZip)) {
                             foreach (ZipArchiveEntry entry in archive.Entries) {
-                                string destPath = Path.Combine(targetDir, entry.FullName);
+                                string relName = entry.FullName;
+                                if (relName.StartsWith("XiaozhiGateway/", StringComparison.OrdinalIgnoreCase)) {
+                                    relName = relName.Substring("XiaozhiGateway/".Length);
+                                } else if (relName.StartsWith("XiaozhiGateway\\", StringComparison.OrdinalIgnoreCase)) {
+                                    relName = relName.Substring("XiaozhiGateway\\".Length);
+                                }
+                                if (string.IsNullOrEmpty(relName)) continue;
+
+                                string destPath = Path.Combine(targetDir, relName);
                                 string dir = Path.GetDirectoryName(destPath);
                                 if (!Directory.Exists(dir)) {
                                     Directory.CreateDirectory(dir);

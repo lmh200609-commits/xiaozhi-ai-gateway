@@ -17,7 +17,10 @@ import subprocess
 from pathlib import Path
 import serial.tools.list_ports
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
 NVS_CSV = BASE_DIR / "nvs_config.csv"
 NVS_BIN = BASE_DIR / "nvs_custom.bin"
 
