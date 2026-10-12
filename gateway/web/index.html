@@ -165,15 +165,43 @@
           </div>
         </div>
 
-        <div class="card" style="background: #f0f7ff; border-color: #bfdbfe;">
-          <div class="card-header" style="border-color: #e0edfe;">
-            <h2 style="color: #2563eb;">💡 Wi-Fi 与硬件配网指引</h2>
+        <div class="card" style="background: #f8fafc; border-color: #cbd5e1;">
+          <div class="card-header" style="border-color: #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <h2 style="color: #0f172a; display:flex; align-items:center; gap:8px;">
+              <span>💡</span> 小智开发板连接与配网指引
+            </h2>
+            <span style="font-size:12px; color:#475569; background:#e2e8f0; padding:4px 10px; border-radius:6px;">
+              当前电脑 Wi-Fi 局域网 IP: <strong id="card-lan-ip" style="color:#2563eb;">127.0.0.1</strong>
+            </span>
           </div>
-          <p style="font-size: 13px; color: #475569; line-height: 1.7;">
-            • <strong>Wi-Fi 连接</strong>：小智支持标准 2.4GHz Wi-Fi。首次使用可按住开发板 BOOT 键 5 秒进入 AP 配网模式（手机连接小智热点后浏览器访问 <code>192.168.4.1</code>），或在 <code>nvs_config.csv</code> 中填入您的热点名称与密码。<br>
-            • <strong>专属通信链路</strong>：开机自动通过当前网关获取 OTA 与 WebSocket 长连接，纯内网极速低延迟，彻底摆脱外部服务器依赖。<br>
-            • <strong>硬件 MCP 调控</strong>：小智连入后会自动注册硬件控制工具，支持实时调节喇叭音量、屏幕亮度与状态播报。
-          </p>
+
+          <!-- Quick Connect URLs with Copy Buttons -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin: 14px 0;">
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;">
+              <div style="font-size:11px; color:#64748b; font-weight:700; margin-bottom:4px;">小智 WebSocket 长连接地址</div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <code id="card-ws-url" style="font-size:12px; color:#0284c7; word-break:break-all;">ws://127.0.0.1:8001/xiaozhi/v1/</code>
+                <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(document.getElementById('card-ws-url').innerText, '已复制 WebSocket 地址！')">📋 复制</button>
+              </div>
+            </div>
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;">
+              <div style="font-size:11px; color:#64748b; font-weight:700; margin-bottom:4px;">小智 OTA 升级与时间同步地址</div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <code id="card-ota-url" style="font-size:12px; color:#0284c7; word-break:break-all;">http://127.0.0.1:8001/ota/</code>
+                <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(document.getElementById('card-ota-url').innerText, '已复制 OTA 地址！')">📋 复制</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size: 13px; color: #475569; line-height: 1.8;">
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:8px; padding:10px 14px; margin-bottom:12px; color:#92400e;">
+              <strong>⚠️ 为什么开发板一直提示“检查新版本失败”？</strong><br>
+              1. <strong>换了电脑使用</strong>：小智开发板芯片内部仍记忆着上一台电脑的旧 IP！在别人电脑上使用时，必须让开发板重新配网并填入<strong>上方显示的当前电脑局域网 IP</strong>。<br>
+              2. <strong>Windows 防火墙拦截</strong>：Windows 默认可能阻止局域网外部设备访问 8001 端口，可在当前电脑以管理员权限执行：<code>netsh advfirewall firewall add rule name="Xiaozhi" dir=in action=allow protocol=TCP localport=8001</code><br>
+              3. <strong>路由器 AP 隔离</strong>：确保开发板与电脑连接的是同一个 Wi-Fi（且非访客网络或隔离热点）。
+            </div>
+            • <strong>手机极速配网</strong>：开发板通电后，长按 <strong>BOOT 键 5 秒</strong>进入 AP 配网模式，手机连接小智 Wi-Fi 热点访问 <code>192.168.4.1</code>，在服务器配置中粘贴上方的 WebSocket 地址即可！
+          </div>
         </div>
       </section>
 

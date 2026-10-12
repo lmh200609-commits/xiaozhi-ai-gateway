@@ -180,6 +180,20 @@ def ensure_single_instance():
     except Exception:
         return None
 
+def ensure_firewall_rule(port: int = 8001):
+    """自动检测并尝试放行 Windows 防火墙入站端口，避免外部开发板连接被拦截"""
+    if sys.platform != "win32":
+        return
+    try:
+        cmd_check = f'netsh advfirewall firewall show rule name="Xiaozhi AI Gateway ({port})"'
+        res = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+        if "没有与指定条件匹配的规则" in res.stdout or "No rules match" in res.stdout:
+            cmd_add = f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({port})" dir=in action=allow protocol=TCP localport={port}'
+            subprocess.run(cmd_add, shell=True, capture_output=True)
+            print(f"[Firewall] 已尝试自动放行局域网入站端口 {port}")
+    except Exception:
+        pass
+
 def main():
     _mutex = ensure_single_instance()
 
@@ -197,8 +211,9 @@ def main():
     # 2. 依赖自愈检测
     check_and_heal_dependencies()
 
-    # 3. 释放被占用的端口
+    # 3. 释放被占用的端口与放行防火墙
     cleanup_port(args.port)
+    ensure_firewall_rule(args.port)
 
     # 4. Wi-Fi IP 与固件 NVS 同步
     sync_network_config()

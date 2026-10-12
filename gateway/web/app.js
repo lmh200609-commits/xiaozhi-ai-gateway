@@ -81,8 +81,22 @@ async function fetchStatus() {
     const statDevCount = document.getElementById('stat-device-count');
     if (statDevCount) statDevCount.textContent = `${data.devices_online || 0} 台`;
 
+    // LAN IP & Connection URLs
+    const lanIp = data.lan_ip || window.location.hostname;
+    const wsUrl = data.ws_url || `ws://${lanIp}:8001/xiaozhi/v1/`;
+    const otaUrl = data.ota_url || `http://${lanIp}:8001/ota/`;
+
+    const cardLanIp = document.getElementById('card-lan-ip');
+    if (cardLanIp) cardLanIp.textContent = lanIp;
+
+    const cardWsUrl = document.getElementById('card-ws-url');
+    if (cardWsUrl) cardWsUrl.textContent = wsUrl;
+
+    const cardOtaUrl = document.getElementById('card-ota-url');
+    if (cardOtaUrl) cardOtaUrl.textContent = otaUrl;
+
     const statLan = document.getElementById('stat-lan-ip');
-    if (statLan) statLan.textContent = window.location.host;
+    if (statLan) statLan.textContent = lanIp;
 
     // Sidebar bottom widget
     const dot = document.getElementById('sidebar-dot');
@@ -98,7 +112,7 @@ async function fetchStatus() {
       } else {
         dot.style.background = "#94a3b8";
         statusText.textContent = "等待小智连接";
-        infoText.textContent = `网关: ${window.location.host}`;
+        infoText.textContent = `网关: ${lanIp}:8001`;
       }
     }
 
@@ -2261,6 +2275,18 @@ function escapeHtml(str) {
       '"': '&quot;'
     }[tag] || tag)
   );
+}
+
+function copyToClipboard(text, successMsg = '已复制到剪贴板！') {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(successMsg);
+    }).catch(() => {
+      prompt('请按 Ctrl+C 复制以下内容：', text);
+    });
+  } else {
+    prompt('请按 Ctrl+C 复制以下内容：', text);
+  }
 }
 
 // ================= Bootstrap Initialization =================

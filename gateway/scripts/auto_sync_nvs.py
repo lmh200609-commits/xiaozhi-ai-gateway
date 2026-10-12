@@ -63,13 +63,68 @@ def find_esp32_port():
         return all_ports[0].device
     return None
 
+DEFAULT_NVS_TEMPLATE = """key,type,encoding,value
+wifi,namespace,,
+ssid,data,string,YOUR_WIFI_NAME
+password,data,string,YOUR_WIFI_PASSWORD
+ota_url,data,string,http://{ip}:8001/ota/
+websocket,namespace,,
+url,data,string,ws://{ip}:8001/xiaozhi/v1/
+version,data,u32,1
+"""
+
+def generate_nvs_bin_file(csv_path, bin_path):
+    """编译 NVS 配置文件为二进制 bin，优先使用内存模块调用，兼容打包环境"""
+    try:
+        import esp_idf_nvs_partition_gen.nvs_partition_gen as nvs_gen
+        args = type('Args', (), {
+            'input': str(csv_path),
+            'output': str(bin_path),
+            'outdir': str(csv_path.parent),
+            'size': '0x4000',
+            'version': 2
+        })()
+        nvs_gen.generate(args)
+        return True
+    except Exception as e:
+        # 备选：通过 Python 命令行调用
+        try:
+            cmd = [
+                sys.executable, "-m", "esp_idf_nvs_partition_gen.nvs_partition_gen",
+                "generate", str(csv_path), str(bin_path), "0x4000"
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR))
+            return res.returncode == 0
+        except Exception:
+            return False
+
+def flash_nvs_bin_file(port, bin_path):
+    """将 bin 写入开发板 NVS 分区，优先使用内存模块调用"""
+    try:
+        import esptool
+        esptool.main(["-p", port, "write_flash", "0x9000", str(bin_path)])
+        return True
+    except SystemExit as se:
+        return se.code == 0
+    except Exception:
+        try:
+            cmd = [sys.executable, "-m", "esptool", "-p", port, "write-flash", "0x9000", str(bin_path)]
+            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR))
+            return res.returncode == 0
+        except Exception:
+            return False
+
 def sync_nvs(target_port=None, force_flash=False):
     ip = get_current_wlan_ip()
     print(f"[Auto-Sync] 当前电脑 Wi-Fi 局域网 IP: {ip}")
     
     if not NVS_CSV.exists():
-        print("[Auto-Sync] 未找到 nvs_config.csv，跳过同步。")
-        return ip
+        try:
+            NVS_CSV.write_text(DEFAULT_NVS_TEMPLATE.format(ip=ip), encoding="utf-8")
+            print("[Auto-Sync] 已根据当前 IP 自动创建 nvs_config.csv 配置文件模板。")
+        except Exception as e:
+            print(f"[Auto-Sync] 创建 nvs_config.csv 失败: {e}")
+            return ip
 
     content = NVS_CSV.read_text(encoding="utf-8")
     
@@ -93,34 +148,27 @@ def sync_nvs(target_port=None, force_flash=False):
     # 1. Update CSV and recompile BIN if IP changed or BIN missing or force_flash
     if needs_update or not NVS_BIN.exists() or force_flash:
         print(f"[Auto-Sync] 正在生成固件配置 (IP: {ip})...")
-        NVS_CSV.write_text(updated_content, encoding="utf-8")
+        try:
+            NVS_CSV.write_text(updated_content, encoding="utf-8")
+        except Exception:
+            pass
         
-        # Compile NVS binary
-        cmd_gen = [
-            sys.executable, "-m", "esp_idf_nvs_partition_gen.nvs_partition_gen",
-            "generate", str(NVS_CSV), str(NVS_BIN), "0x4000"
-        ]
-        res = subprocess.run(cmd_gen, capture_output=True, text=True, cwd=str(BASE_DIR))
-        if res.returncode != 0:
-            print(f"[Auto-Sync] 生成 NVS 二进制文件失败: {res.stderr}")
+        ok = generate_nvs_bin_file(NVS_CSV, NVS_BIN)
+        if ok:
+            print("[Auto-Sync] 已成功生成最新固件配置 nvs_custom.bin")
+        else:
+            print("[Auto-Sync] 生成 NVS 二进制文件失败")
             return ip
-            
-        print("[Auto-Sync] 已成功生成最新固件配置 nvs_custom.bin")
     else:
         print(f"[Auto-Sync] 本地固件配置已与当前电脑 IP {ip} 保持一致。")
 
     # 2. Flash to board if port found
     if port and NVS_BIN.exists():
         print(f"[Auto-Sync] 检测到小智开发板连接在 {port}，正在一键写入新配置 (IP: {ip})...")
-        cmd_flash = [
-            sys.executable, "-m", "esptool",
-            "-p", port, "write-flash", "0x9000", str(NVS_BIN)
-        ]
-        res_flash = subprocess.run(cmd_flash, capture_output=True, text=True, cwd=str(BASE_DIR))
-        if res_flash.returncode == 0:
+        if flash_nvs_bin_file(port, NVS_BIN):
             print(f"[Auto-Sync] [成功] 已自动为小智开发板更新 IP: {ip}！开发板将自动重启连接。")
         else:
-            print(f"[Auto-Sync] 写入失败: {res_flash.stderr}")
+            print(f"[Auto-Sync] 写入失败，请检查串口是否被其他程序占用。")
     elif not port:
         print(f"[Auto-Sync] 提示: 未检测到小智 USB 串口连接 (已更新本地文件配置)。")
 
@@ -128,3 +176,4 @@ def sync_nvs(target_port=None, force_flash=False):
 
 if __name__ == "__main__":
     sync_nvs()
+

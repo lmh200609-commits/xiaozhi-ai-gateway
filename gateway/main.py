@@ -102,9 +102,19 @@ async def get_status():
         dev_copy.pop("ws", None)
         safe_devices.append(dev_copy)
 
+    lan_ip = "127.0.0.1"
+    try:
+        from gateway.scripts.auto_sync_nvs import get_current_wlan_ip
+        lan_ip = get_current_wlan_ip()
+    except Exception:
+        pass
+
     return {
         "devices_online": len(safe_devices),
         "devices": safe_devices,
+        "lan_ip": lan_ip,
+        "ws_url": f"ws://{lan_ip}:{config.port}/xiaozhi/v1/",
+        "ota_url": f"http://{lan_ip}:{config.port}/ota/",
         "config": config.model_dump(),
         "active_role": role_manager.get_active_role(),
         "active_zone": zone_manager.get_active_zone(),
@@ -1500,19 +1510,39 @@ async def get_devices():
 
 @app.api_route("/ota/", methods=["GET", "POST"])
 @app.api_route("/ota", methods=["GET", "POST"])
+@app.api_route("/xiaozhi/ota/", methods=["GET", "POST"])
+@app.api_route("/xiaozhi/ota", methods=["GET", "POST"])
+@app.api_route("/api/ota/", methods=["GET", "POST"])
 @app.api_route("/api/ota", methods=["GET", "POST"])
 async def ota_endpoint(req: Request):
     """
     Xiaozhi OTA check endpoint.
     Directs the board to connect via WebSocket to our custom gateway instead of MQTT.
     """
-    client_host = req.headers.get("host", f"10.90.169.206:{config.port}")
+    lan_ip = "127.0.0.1"
+    try:
+        from gateway.scripts.auto_sync_nvs import get_current_wlan_ip
+        lan_ip = get_current_wlan_ip()
+    except Exception:
+        pass
+
+    client_host = req.headers.get("host", f"{lan_ip}:{config.port}")
     host_only = client_host.split(":")[0]
+    if host_only in ["localhost", "127.0.0.1", "0.0.0.0"]:
+        host_only = lan_ip
     ws_url = f"ws://{host_only}:{config.port}/xiaozhi/v1/"
     client_ip = req.client.host if req.client else "unknown"
     device_mac = req.headers.get("device-id") or "14:c1:9f:cb:63:88"
 
-    print(f"[OTA] Device queried OTA from {client_ip} (MAC: {device_mac}). Returning ws_url: {ws_url}")
+    app_version = "1.0.0"
+    try:
+        body = await req.json()
+        if isinstance(body, dict):
+            app_version = body.get("application", {}).get("version", "1.0.0")
+    except Exception:
+        pass
+
+    print(f"[OTA] Device queried OTA from {client_ip} (MAC: {device_mac}, ver: {app_version}). Returning ws_url: {ws_url}")
 
     active_devices[device_mac] = {
         "device_id": device_mac,
@@ -1533,7 +1563,12 @@ async def ota_endpoint(req: Request):
     return {
         "server_time": {
             "timestamp": int(time.time() * 1000),
+            "timeZone": "Asia/Shanghai",
             "timezone_offset": 480
+        },
+        "firmware": {
+            "version": app_version,
+            "url": ""
         },
         "websocket": {
             "url": ws_url,

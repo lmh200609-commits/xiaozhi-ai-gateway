@@ -122,10 +122,16 @@ def build():
     dst_videos.mkdir(parents=True, exist_ok=True)
     (dst_videos / "videos_manifest.json").write_text("[]", encoding="utf-8")
 
-    # 3. Copy web directory
+    # 3. Copy web directory (ensure latest web files are copied to both locations)
     dst_web = output_app_dir / "gateway" / "web"
-    if not dst_web.exists():
-        shutil.copytree(PROJECT_ROOT / "gateway" / "web", dst_web)
+    if dst_web.exists():
+        shutil.rmtree(dst_web)
+    shutil.copytree(PROJECT_ROOT / "gateway" / "web", dst_web)
+    
+    internal_web = output_app_dir / "_internal" / "gateway" / "web"
+    if internal_web.exists():
+        shutil.rmtree(internal_web)
+    shutil.copytree(PROJECT_ROOT / "gateway" / "web", internal_web)
 
     # 4. Copy model structure & tokens.txt
     (output_app_dir / "models" / "sense-voice").mkdir(parents=True, exist_ok=True)
@@ -136,7 +142,11 @@ def build():
     if model_src.exists():
         shutil.copy(model_src, output_app_dir / "models" / "sense-voice" / "model.int8.onnx")
 
-    # 5. One-click launcher scripts
+    # 4.5 Copy NVS config and board helper files
+    if (PROJECT_ROOT / "nvs_config.csv").exists():
+        shutil.copy(PROJECT_ROOT / "nvs_config.csv", output_app_dir / "nvs_config.csv")
+
+    # 5. One-click launcher scripts & helper tools
     launcher_bat_gui = output_app_dir / "启动小智网关.bat"
     launcher_bat_gui.write_text(
         "@echo off\r\n"
@@ -158,6 +168,16 @@ def build():
         "pause\r\n",
         encoding="utf-8"
     )
+
+    # Copy firewall tool
+    fw_src = PROJECT_ROOT / "放行防火墙(遇到连接失败点我).bat"
+    if fw_src.exists():
+        shutil.copy(fw_src, output_app_dir / "放行防火墙(遇到连接失败点我).bat")
+
+    # Copy USB board sync tool
+    board_sync_src = PROJECT_ROOT / "一键配网开发板(插数据线点我).bat"
+    if board_sync_src.exists():
+        shutil.copy(board_sync_src, output_app_dir / "一键配网开发板(插数据线点我).bat")
 
     # 6. Offline Model Downloader bat for users with slow initial launch
     model_dl_bat = output_app_dir / "一键下载离线语音识别模型.bat"
@@ -191,8 +211,26 @@ def build():
         "2. 程序将直接以原生桌面应用程序窗口启动，体验与普通电脑客户端软件完全一致！\n"
         "3. 本版本为纯净空白版，大模型 API 密钥已留空，请在系统设置中填入您自己的 API Key。\n"
         "4. 本版本已内置【专属知识库客服】角色，并支持在界面中新建或删除自定义人设。\n"
-        "5. 如需在命令行查看实时调试日志，可运行【启动小智网关(控制台模式).bat】。\n"
-        "6. 硬件设备 (ESP32) 连接至网关 IP 即可享受流畅语音对话！\n"
+        "\n"
+        "【小智开发板连接与配网指南（重要！）】\n"
+        "⚠️ 为什么在别人电脑上使用时，开发板一直提示“检查新版本失败”？\n"
+        "根本原因：小智开发板芯片内部保存着上一台电脑的旧 IP！换了新电脑后，新电脑的局域网 IP\n"
+        "已经改变，开发板开机去连接旧 IP 自然超时报错，并非程序故障。\n"
+        "\n"
+        "【两步极速修复方案】：\n"
+        "方案一（无线手机配网，最推荐，无需插线）：\n"
+        "  1) 小智开发板通电，长按开发板上的 BOOT 键 5 秒进入 AP 配网模式；\n"
+        "  2) 用手机连接小智发射的 Wi-Fi 热点（如 Xiaozhi-XXXX），打开手机浏览器访问 192.168.4.1；\n"
+        "  3) 连上当前 Wi-Fi，并将服务器/WebSocket 地址修改为当前电脑的局域网 IP：\n"
+        "     格式为：ws://<当前电脑IP>:8001/xiaozhi/v1/ （在网关首页顶部可一键复制）；\n"
+        "  4) 保存重启后开发板即可秒连！\n"
+        "\n"
+        "方案二（USB数据线插电脑）：\n"
+        "  用 Type-C 数据线将小智插在电脑上，双击运行【一键配网开发板(插数据线点我).bat】，\n"
+        "  程序将自动识别当前电脑 IP 并一秒写进开发板！\n"
+        "\n"
+        "方案三（若提示外部网络拦截）：\n"
+        "  双击运行【放行防火墙(遇到连接失败点我).bat】，在弹窗中点“是”放行 8001 端口即可。\n"
         "================================================================\n",
         encoding="utf-8"
     )
