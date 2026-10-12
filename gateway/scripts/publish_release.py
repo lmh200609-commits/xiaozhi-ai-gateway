@@ -28,29 +28,26 @@ def get_github_token():
     return ""
 
 REPO = "lmh200609-commits/xiaozhi-ai-gateway"
-TAG = "v2.0.0"
-RELEASE_NAME = "Xiaozhi AI Gateway v2.0.0 (纯净空白原配版)"
+TAG = "v2.1.0"
+RELEASE_NAME = "Xiaozhi AI Gateway v2.1.0 (硬件自愈配网与OTA全链路修复版)"
 
-RELEASE_BODY = """## 🚀 小智 AI 语音网关 v2.0.0 (原生桌面应用程序 · 纯净空白版)
+RELEASE_BODY = """## 🚀 小智 AI 语音网关 v2.1.0 (硬件自愈配网与OTA全链路修复版)
 
 本项目是基于 ESP32 硬件与自建 Python 后端网关的小智 AI 语音助手全套工作区，支持离线语音识别 (SenseVoice)、在线流式语音合成 (Edge-TTS)、大模型对话中转、知识库 RAG 检索、设备端 MCP 工具调用及电脑端展厅展映控制。
 
-### ✨ 本版本核心特性 (Native Desktop & Vanilla Edition)
-1. **真正的原生桌面应用程序体验**：
-   - 不再依赖浏览器弹窗，双击桌面图标直接启动原生桌面 GUI 窗口；
-   - 杜绝黑框命令行窗口闪烁或误关，关闭窗口即可干净退出；
-   - 提供控制台模式脚本以备开发者调试查看日志。
-2. **纯净空白原装交付 · 零数据残留**：
-   - 大模型 API Key 彻底清空留白，绝不包含任何预填密钥或测试占位；
-   - 知识库完全清空（0 篇文档、0 个切片）；
-   - 仅内置单一官方角色：**【专属知识库客服】**（`rag_expert`，默认激活，亲切知性女声，智能检索本地私有库）；
-   - 新增**自定义人设删除功能**，可在人设卡片与编辑弹窗中一键删除不需要的角色。
-3. **彻底根除提示词泄露与口径互搏**：
-   - 消除“既承诺介绍又拒绝回答”的自相矛盾现象；
-   - 严禁向用户说出任何“系统设定”、“内部设定”、“严格原文复述模式”等后台术语，回答自然亲切。
-4. **免 Python 环境一键即用**：
-   - 内置所有必要运行环境与依赖库，不需要配置复杂的 Python 环境；
-   - 兼容各类 Windows 10 / 11 64位系统。
+### 🌟 v2.1.0 重大更新与修复（解决“检查新版本失败”）
+1. **全面修复小智开发板“检查新版本失败”报错**：
+   - 全面兼容小智官方 ESP32 固件的全部 OTA 路由别名（`/ota/`、`/xiaozhi/ota/`、`/api/ota/`）；
+   - 返回标准固件版本结构体与 `Asia/Shanghai` 时区，彻底解决换电脑或跨局域网连接超时问题。
+2. **内置网络自愈与一键工具**：
+   - **`放行防火墙(遇到连接失败点我).bat`**：随包内置，双击自动申请 UAC 权限一键放行 Windows 防火墙 8001 端口；
+   - **`一键配网开发板(插数据线点我).bat`**：通过 Type-C 数据线插电脑后双击，自动检测当前电脑 Wi-Fi IP 并一秒烧录进开发板。
+3. **客户端界面优化**：
+   - 首页顶部直接展示当前电脑真实的 Wi-Fi 局域网 IP；
+   - 提供小智 WebSocket 长连接与 OTA 地址的**一键复制**按钮，手机 AP 配网更简单。
+4. **真正的原生桌面应用程序体验**：
+   - 双击桌面图标直接启动原生桌面 GUI 窗口，无需打开浏览器；
+   - 纯净空白原配，大模型 API Key 彻底清空留白，新增**自定义人设删除功能**。
 
 ---
 
@@ -58,13 +55,13 @@ RELEASE_BODY = """## 🚀 小智 AI 语音网关 v2.0.0 (原生桌面应用程�
 
 | 文件名 | 类型 | 说明 |
 | :--- | :--- | :--- |
-| **`XiaozhiGateway-v2.0-Setup.exe`** | **原生安装程序 (推荐)** | 下载后直接双击运行，支持自由选择安装路径，自动创建桌面快捷方式，秒级开启桌面原生应用！ |
-| **`XiaozhiGateway-v2.0-Vanilla.zip`** | **绿色便携免安装版** | 解压到任意目录，直接双击运行 `XiaozhiGateway.exe` 即可启动原生应用。 |
+| **`XiaozhiGateway-v2.1-Setup.exe`** | **原生安装程序 (推荐)** | 下载后直接双击运行，自动安装并创建桌面快捷方式，秒级开启桌面原生应用！ |
+| **`XiaozhiGateway-v2.1-Vanilla.zip`** | **绿色便携免安装版** | 解压到任意目录，直接双击运行 `XiaozhiGateway.exe` 即可启动原生应用。 |
 
 ---
 
 ### 💡 快速上手流程
-1. 下载并运行 `XiaozhiGateway-v2.0-Setup.exe`；
+1. 下载并运行 `XiaozhiGateway-v2.1-Setup.exe`；
 2. 安装完成后启动桌面图标，直接开启原生桌面应用程序；
 3. 在系统设置中填入您可用的大模型 API Key（支持 DeepSeek、智谱 GLM、SiliconFlow、OpenAI 等）；
 4. 进入【知识库管理】上传您自己的 Word、PDF、Markdown 文件即可使用！
@@ -133,8 +130,8 @@ def publish():
     # 4. Files to upload
     base_dir = Path(__file__).resolve().parent.parent.parent
     files_to_upload = [
-        (base_dir / "dist" / "XiaozhiGateway-v2.0-Setup.exe", "XiaozhiGateway-v2.0-Setup.exe", "application/octet-stream"),
-        (base_dir / "dist" / "XiaozhiGateway-v2.0-Vanilla.zip", "XiaozhiGateway-v2.0-Vanilla.zip", "application/zip")
+        (base_dir / "dist" / "XiaozhiGateway-v2.1-Setup.exe", "XiaozhiGateway-v2.1-Setup.exe", "application/octet-stream"),
+        (base_dir / "dist" / "XiaozhiGateway-v2.1-Vanilla.zip", "XiaozhiGateway-v2.1-Vanilla.zip", "application/zip")
     ]
 
     for file_path, asset_name, content_type in files_to_upload:
