@@ -303,21 +303,32 @@ async def wizard_detect():
     except Exception as e:
         print(f"[Wizard] Error listing serial ports: {e}")
 
-    # 3. Read current Wi-Fi from NVS_CSV
+    # 3. Detect current connected Wi-Fi info from system network adapter
     current_ssid = ""
     current_password = ""
+    wifi_band = "2.4 GHz"
+    is_5g = False
+    firewall_allowed = False
     try:
-        from gateway.scripts.auto_sync_nvs import NVS_CSV
-        if NVS_CSV.exists():
+        from gateway.scripts.auto_sync_nvs import get_current_wifi_info, check_firewall_rule_exists, NVS_CSV
+        wifi_info = get_current_wifi_info()
+        current_ssid = wifi_info.get("ssid", "")
+        current_password = wifi_info.get("password", "")
+        wifi_band = wifi_info.get("band", "2.4 GHz")
+        is_5g = wifi_info.get("is_5g", False)
+        firewall_allowed = check_firewall_rule_exists(config.port)
+
+        # Fallback to NVS_CSV if system didn't detect Wi-Fi
+        if not current_ssid and NVS_CSV.exists():
             for line in NVS_CSV.read_text(encoding="utf-8", errors="ignore").splitlines():
                 parts = line.strip().split(",")
                 if len(parts) >= 4:
-                    if parts[0] == "ssid":
+                    if parts[0] == "ssid" and parts[3] and parts[3] not in ("YOUR_WIFI_NAME", "vivo X200s"):
                         current_ssid = parts[3]
-                    elif parts[0] == "password":
+                    elif parts[0] == "password" and parts[3] and parts[3] not in ("YOUR_WIFI_PASSWORD", "lmh200609"):
                         current_password = parts[3]
     except Exception as e:
-        print(f"[Wizard] Error reading NVS CSV: {e}")
+        print(f"[Wizard] Error detecting Wi-Fi info: {e}")
 
     # 4. Connected devices summary
     online_count = len(active_devices)
@@ -343,6 +354,9 @@ async def wizard_detect():
         "recommended_port": recommended_port,
         "current_ssid": current_ssid,
         "current_password": current_password,
+        "wifi_band": wifi_band,
+        "is_5g": is_5g,
+        "firewall_allowed": firewall_allowed,
         "devices_online": online_count,
         "devices": dev_list,
         "llm_ready": llm_ready,
@@ -351,6 +365,18 @@ async def wizard_detect():
         "has_api_key": llm_ready,
         "api_key": config.relay_api_key or ""
     }
+
+@app.post("/api/wizard/fix_firewall")
+async def wizard_fix_firewall():
+    """
+    一键放行 Windows 防火墙 8001 端口 (解决外部板子连接失败/超时问题)
+    """
+    try:
+        from gateway.scripts.auto_sync_nvs import open_firewall_port
+        ok, msg = open_firewall_port(config.port)
+        return {"status": "ok" if ok else "error", "message": msg}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 @app.post("/api/wizard/flash")
 async def wizard_flash(req: Request):

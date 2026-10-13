@@ -118,8 +118,16 @@ def main():
     # 3. 释放被占用的端口
     cleanup_port(args.port)
 
-    # 4. Wi-Fi IP 与固件 NVS 同步
+    # 4. Wi-Fi IP 与固件 NVS 同步 (仅生成本地配置，不盲目静默刷机)
     sync_network_config()
+
+    # 4.1 防火墙放行检测
+    try:
+        from gateway.scripts.auto_sync_nvs import check_firewall_rule_exists
+        if not check_firewall_rule_exists(args.port):
+            subprocess.run(f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({args.port})" dir=in action=allow protocol=TCP localport={args.port}', shell=True, capture_output=True)
+    except Exception:
+        pass
 
     # 4.5 离线语音识别模型检测与补全 (ModelScope 极速通道)
     try:

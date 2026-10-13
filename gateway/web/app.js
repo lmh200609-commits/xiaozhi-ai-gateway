@@ -2460,6 +2460,17 @@ function wizSkipStep() {
   wizNextStep();
 }
 
+async function wizFixFirewall() {
+  try {
+    const res = await fetch('/api/wizard/fix_firewall', { method: 'POST' });
+    const d = await res.json();
+    alert(d.message || '防火墙放行指令已执行！');
+    setTimeout(wizDetectData, 1500);
+  } catch (err) {
+    alert('操作失败: ' + err.message);
+  }
+}
+
 async function wizDetectData() {
   try {
     const res = await fetch('/api/wizard/detect');
@@ -2467,11 +2478,19 @@ async function wizDetectData() {
     const data = await res.json();
     wizDetectedData = data;
 
-    // Step 1: IP & Port
+    // Step 1: IP & Port & Firewall
     const ipEl = document.getElementById('wiz-step1-ip');
     const portEl = document.getElementById('wiz-step1-port');
+    const fwEl = document.getElementById('wiz-step1-firewall');
     if (ipEl) ipEl.textContent = data.lan_ip || '127.0.0.1';
     if (portEl) portEl.textContent = `${data.port || 8001} (服务就绪)`;
+    if (fwEl) {
+      if (data.firewall_allowed) {
+        fwEl.innerHTML = `<span style="color: #16a34a; font-weight: 600;">✅ 已放行 8001 端口 (允许开发板连入)</span>`;
+      } else {
+        fwEl.innerHTML = `<span style="color: #ea580c; font-weight: 600;">⚠️ 暂未检测到放行规则 (可能拦截开发板连入)</span>`;
+      }
+    }
 
     // Step 2: Ports & Wi-Fi
     const portSelect = document.getElementById('wiz-step2-port');
@@ -2504,8 +2523,27 @@ async function wizDetectData() {
 
     const ssidIn = document.getElementById('wiz-step2-ssid');
     const passIn = document.getElementById('wiz-step2-pass');
-    if (ssidIn && !ssidIn.value) ssidIn.value = data.current_ssid || '';
-    if (passIn && !passIn.value) passIn.value = data.current_password || '';
+    const wifiHint = document.getElementById('wiz-step2-wifi-hint');
+    const alert5g = document.getElementById('wiz-step2-5g-alert');
+
+    if (ssidIn) {
+      if (!ssidIn.value && data.current_ssid) ssidIn.value = data.current_ssid;
+    }
+    if (passIn) {
+      if (!passIn.value && data.current_password) passIn.value = data.current_password;
+    }
+
+    if (wifiHint) {
+      if (data.current_ssid) {
+        wifiHint.innerHTML = `📡 已自动识别电脑当前连接的 Wi-Fi: <strong>${escapeHtml(data.current_ssid)}</strong> (频段: <strong>${escapeHtml(data.wifi_band || '2.4 GHz')}</strong>)`;
+      } else {
+        wifiHint.textContent = '';
+      }
+    }
+
+    if (alert5g) {
+      alert5g.style.display = data.is_5g ? 'block' : 'none';
+    }
 
     // Step 4: LLM Key
     const keyInput = document.getElementById('wiz-llm-key-input');

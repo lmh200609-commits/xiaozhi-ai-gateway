@@ -114,6 +114,72 @@ def flash_nvs_bin_file(port, bin_path):
         except Exception:
             return False
 
+def get_current_wifi_info():
+    """获取当前 Windows 电脑实际连接的 Wi-Fi 名称、频段(2.4G/5G)与保存的密码"""
+    ssid = ""
+    band = ""
+    password = ""
+    is_5g = False
+    try:
+        out = subprocess.check_output("netsh wlan show interfaces", shell=True)
+        txt = out.decode("utf-8", errors="ignore")
+        for line in txt.splitlines():
+            line_str = line.strip()
+            if "SSID" in line_str and "BSSID" not in line_str:
+                parts = line_str.split(":", 1)
+                if len(parts) == 2 and not ssid:
+                    ssid = parts[1].strip()
+            if any(k in line_str for k in ["波段", "Band", "频段", "波"]):
+                parts = line_str.split(":", 1)
+                if len(parts) == 2 and not band:
+                    band = parts[1].strip()
+        
+        if band and "5" in band:
+            is_5g = True
+        
+        if ssid:
+            try:
+                p_out = subprocess.check_output(f'netsh wlan show profile name="{ssid}" key=clear', shell=True)
+                p_txt = p_out.decode("utf-8", errors="ignore")
+                for p_line in p_txt.splitlines():
+                    p_str = p_line.strip()
+                    if any(k in p_str for k in ["关键内容", "Key Content", "关键"]):
+                        p_parts = p_str.split(":", 1)
+                        if len(p_parts) == 2 and not password:
+                            password = p_parts[1].strip()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    
+    return {
+        "ssid": ssid,
+        "band": band or ("5 GHz" if is_5g else "2.4 GHz"),
+        "is_5g": is_5g,
+        "password": password
+    }
+
+def check_firewall_rule_exists(port=8001):
+    """检测 8001 端口是否在防火墙中放行"""
+    try:
+        res = subprocess.run(f'netsh advfirewall firewall show rule name="Xiaozhi AI Gateway ({port})"', shell=True, capture_output=True)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def open_firewall_port(port=8001):
+    """请求放行 Windows 防火墙入站端口"""
+    try:
+        cmd = f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({port})" dir=in action=allow protocol=TCP localport={port}'
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if res.returncode == 0:
+            return True, "防火墙规则已成功添加"
+        ps_cmd = f'Start-Process powershell -ArgumentList \'-Command "New-NetFirewallRule -DisplayName \\\"Xiaozhi AI Gateway ({port})\\\" -Direction Inbound -LocalPort {port} -Protocol TCP -Action Allow"\' -Verb RunAs -WindowStyle Hidden'
+        subprocess.run(["powershell", "-Command", ps_cmd])
+        return True, "已弹出管理员提权窗口，请在弹窗中选择【是】！"
+    except Exception as e:
+        return False, str(e)
+
 def sync_nvs(target_port=None, force_flash=False):
     ip = get_current_wlan_ip()
     print(f"[Auto-Sync] 当前电脑 Wi-Fi 局域网 IP: {ip}")
@@ -162,18 +228,18 @@ def sync_nvs(target_port=None, force_flash=False):
     else:
         print(f"[Auto-Sync] 本地固件配置已与当前电脑 IP {ip} 保持一致。")
 
-    # 2. Flash to board if port found
-    if port and NVS_BIN.exists():
+    # 2. Flash to board ONLY when force_flash=True (never blindly overwrite on startup)
+    if force_flash and port and NVS_BIN.exists():
         print(f"[Auto-Sync] 检测到小智开发板连接在 {port}，正在一键写入新配置 (IP: {ip})...")
         if flash_nvs_bin_file(port, NVS_BIN):
             print(f"[Auto-Sync] [成功] 已自动为小智开发板更新 IP: {ip}！开发板将自动重启连接。")
         else:
             print(f"[Auto-Sync] 写入失败，请检查串口是否被其他程序占用。")
-    elif not port:
+    elif not port and force_flash:
         print(f"[Auto-Sync] 提示: 未检测到小智 USB 串口连接 (已更新本地文件配置)。")
 
     return ip
 
 if __name__ == "__main__":
-    sync_nvs()
+    sync_nvs(force_flash=True)
 

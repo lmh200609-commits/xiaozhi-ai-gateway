@@ -923,7 +923,7 @@
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0 10px 0;">
             <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px;">
               <span style="font-size: 12px; color: #64748b;">电脑当前 Wi-Fi 局域网 IP</span>
               <div id="wiz-step1-ip" style="font-size: 20px; font-weight: 700; color: #2563eb; margin-top: 4px;">检测中...</div>
@@ -932,6 +932,14 @@
               <span style="font-size: 12px; color: #64748b;">网关服务监听端口</span>
               <div id="wiz-step1-port" style="font-size: 20px; font-weight: 700; color: #16a34a; margin-top: 4px;">8001 (就绪)</div>
             </div>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+            <div>
+              <span style="color: #475569;">Windows 入站防火墙状态：</span>
+              <span id="wiz-step1-firewall">检测中...</span>
+            </div>
+            <button class="btn btn-secondary" onclick="wizFixFirewall()" style="font-size: 11px; padding: 3px 10px;">🛡️ 一键放行防火墙 (8001端口)</button>
           </div>
 
           <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #1e40af; line-height: 1.6;">
@@ -951,7 +959,13 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-top: 16px;">
+          <div id="wiz-step2-5g-alert" style="display: none; margin-top: 14px; background: #fef2f2; border: 1px solid #f87171; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #991b1b; line-height: 1.5;">
+            🚨 <strong>检测到当前电脑连接的是 5GHz 频段 Wi-Fi！</strong><br>
+            小智 ESP32 芯片<strong>仅支持 2.4GHz Wi-Fi</strong>，无法识别或连接 5GHz 网络！<br>
+            <strong>解决方案：</strong>请在电脑右下角 Wi-Fi 列表中切换至 2.4G 频段 Wi-Fi（路由器通常有 2.4G 和 5G 两个名字），或开启手机 2.4G 个人热点。
+          </div>
+
+          <div class="form-group" style="margin-top: 14px;">
             <label style="display: flex; justify-content: space-between; align-items: center;">
               <span>小智开发板 USB 串口 (COM 口)</span>
               <button class="btn btn-secondary" onclick="wizDetectPorts()" style="font-size: 11px; padding: 2px 8px;">🔄 重新扫描串口</button>
@@ -971,8 +985,15 @@
             </div>
           </div>
 
-          <div style="margin-top: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e;">
-            ⚠️ <strong>硬件提示：</strong>ESP32-S3 只支持 <strong>2.4GHz</strong> 频段 Wi-Fi。如果是手机热点，请务必在热点设置中开启<strong>“最大兼容性 / 2.4GHz 频段”</strong>。
+          <div id="wiz-step2-wifi-hint" style="margin-top: 4px; font-size: 12px; color: #2563eb;"></div>
+
+          <div style="margin-top: 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #92400e; line-height: 1.6;">
+            📌 <strong>为什么在其他电脑或其他网络上小智可能连不上？</strong><br>
+            1. <strong>公司/校园/酒店网络 (AP客户端隔离)</strong>：企业级路由器通常开启了“隔离”功能，禁止局域网设备互连，板子无法与电脑通信。<br>
+            2. <strong>网页登录/Portal认证 Wi-Fi</strong>：需要跳出网页输验证码的网络，小智无法自动点击认证。<br>
+            3. <strong>5GHz 频段 Wi-Fi</strong>：小智硬件只认 2.4GHz 频段。<br>
+            4. <strong>旧网络残留</strong>：换了电脑或 Wi-Fi 后，小智芯片内仍保存着旧电脑 IP，必须用数据线连接电脑后点击下方【一键写入】！<br>
+            👉 <strong>最省心推荐方案：</strong>电脑和小智同时连<strong>手机 2.4G 个人热点</strong>（无内网隔离、随身携带走哪都能用）。
           </div>
 
           <div style="margin-top: 16px; text-align: center;">

@@ -267,6 +267,17 @@ namespace XiaozhiInstaller {
                         CreateDesktopShortcut(shortcutPath, targetExe, Path.GetDirectoryName(targetExe));
                     }
 
+                    // 5. 自动放行 Windows 防火墙 8001 端口 (允许外部小智开发板通过 Wi-Fi 访问)
+                    try {
+                        ProcessStartInfo psi = new ProcessStartInfo {
+                            FileName = "netsh",
+                            Arguments = "advfirewall firewall add rule name=\"Xiaozhi AI Gateway (8001)\" dir=in action=allow protocol=TCP localport=8001",
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        };
+                        Process.Start(psi);
+                    } catch {}
+
                 } catch (Exception ex) {
                     errorMsg = ex.Message;
                 }
