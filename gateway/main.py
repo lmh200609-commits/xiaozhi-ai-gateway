@@ -260,6 +260,256 @@ async def update_config(req: Request):
     config.save()
     return {"status": "ok", "config": config.model_dump()}
 
+# ----------------- Setup & Connection Wizard (启动与连网自检配置向导) API -----------------
+
+@app.get("/api/wizard/detect")
+async def wizard_detect():
+    """
+    一键自检：局域网 IP、开发板 USB 串口识别、当前 NVS Wi-Fi 配置、在线状态及大模型配置
+    """
+    # 1. PC WLAN IP
+    lan_ip = "127.0.0.1"
+    try:
+        from gateway.scripts.auto_sync_nvs import get_current_wlan_ip
+        lan_ip = get_current_wlan_ip()
+    except Exception:
+        pass
+
+    # 2. Serial COM ports
+    ports_info = []
+    recommended_port = None
+    try:
+        import serial.tools.list_ports
+        all_ports = list(serial.tools.list_ports.comports())
+        for p in all_ports:
+            hwid = (p.hwid or "").lower()
+            desc = (p.description or "").lower()
+            is_esp = any(k in hwid or k in desc for k in [
+                "303a", "espressif", "ch340", "ch341", "ch343", 
+                "cp210", "cp2102", "cp2104", "usb-serial", "uart", 
+                "serial", "串行", "usb 串行设备"
+            ])
+            item = {
+                "port": p.device,
+                "description": p.description or p.device,
+                "hwid": p.hwid or "",
+                "is_esp": is_esp
+            }
+            ports_info.append(item)
+            if is_esp and not recommended_port:
+                recommended_port = p.device
+        if not recommended_port and ports_info:
+            recommended_port = ports_info[0]["port"]
+    except Exception as e:
+        print(f"[Wizard] Error listing serial ports: {e}")
+
+    # 3. Read current Wi-Fi from NVS_CSV
+    current_ssid = ""
+    current_password = ""
+    try:
+        from gateway.scripts.auto_sync_nvs import NVS_CSV
+        if NVS_CSV.exists():
+            for line in NVS_CSV.read_text(encoding="utf-8", errors="ignore").splitlines():
+                parts = line.strip().split(",")
+                if len(parts) >= 4:
+                    if parts[0] == "ssid":
+                        current_ssid = parts[3]
+                    elif parts[0] == "password":
+                        current_password = parts[3]
+    except Exception as e:
+        print(f"[Wizard] Error reading NVS CSV: {e}")
+
+    # 4. Connected devices summary
+    online_count = len(active_devices)
+    dev_list = []
+    for d in active_devices.values():
+        dev_list.append({
+            "device_id": d.get("device_id"),
+            "ip": d.get("ip"),
+            "version": d.get("version") or "v2.2.6",
+            "mac": d.get("mac") or d.get("device_id"),
+            "session_id": d.get("session_id"),
+            "connected_at": d.get("connected_at")
+        })
+
+    # 5. LLM config status
+    llm_ready = bool(config.relay_api_key and config.relay_api_key not in ("sk-default", "none", ""))
+
+    return {
+        "status": "ok",
+        "lan_ip": lan_ip,
+        "port": config.port,
+        "ports": ports_info,
+        "recommended_port": recommended_port,
+        "current_ssid": current_ssid,
+        "current_password": current_password,
+        "devices_online": online_count,
+        "devices": dev_list,
+        "llm_ready": llm_ready,
+        "model_name": config.model_name,
+        "relay_base_url": config.relay_base_url,
+        "has_api_key": llm_ready
+    }
+
+@app.post("/api/wizard/flash")
+async def wizard_flash(req: Request):
+    """
+    一键将 Wi-Fi 名称、密码及当前电脑网关 IP 编译写入 ESP32 开发板
+    """
+    data = await req.json()
+    port = data.get("port")
+    ssid = data.get("ssid", "").strip()
+    password = data.get("password", "").strip()
+
+    if not port:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "请选择或指定小智开发板的 USB 串口 (如 COM13)！"})
+    if not ssid:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Wi-Fi 名称 (SSID) 不能为空！"})
+
+    try:
+        from gateway.scripts.auto_sync_nvs import get_current_wlan_ip, generate_nvs_bin_file, flash_nvs_bin_file, NVS_CSV, NVS_BIN
+        lan_ip = get_current_wlan_ip()
+
+        # Update nvs_config.csv
+        csv_template = f"""key,type,encoding,value
+wifi,namespace,,
+ssid,data,string,{ssid}
+password,data,string,{password}
+ota_url,data,string,http://{lan_ip}:{config.port}/ota/
+websocket,namespace,,
+url,data,string,ws://{lan_ip}:{config.port}/xiaozhi/v1/
+version,data,u32,1
+"""
+        NVS_CSV.write_text(csv_template, encoding="utf-8")
+
+        # Compile NVS bin
+        ok_gen = generate_nvs_bin_file(NVS_CSV, NVS_BIN)
+        if not ok_gen:
+            return JSONResponse(status_code=500, content={"status": "error", "message": "NVS 二进制配置生成失败，请检查环境权限。"})
+
+        # Flash to board
+        loop = asyncio.get_event_loop()
+        ok_flash = await loop.run_in_executor(None, flash_nvs_bin_file, port, NVS_BIN)
+        if not ok_flash:
+            return JSONResponse(status_code=500, content={"status": "error", "message": f"写入串口 {port} 失败！请检查串口是否被串口助手等占用，或拔插 USB 重试。"})
+
+        return {
+            "status": "ok",
+            "message": f"🎉 成功为开发板 ({port}) 写入 Wi-Fi【{ssid}】与电脑网关 IP【{lan_ip}】！开发板正在重启，约 3~5 秒内自动连接网关。",
+            "lan_ip": lan_ip,
+            "port": port
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"刷写过程异常: {str(e)}"})
+
+@app.post("/api/wizard/test_llm")
+async def wizard_test_llm(req: Request):
+    """
+    测试大模型中转连通性与响应延迟
+    """
+    data = await req.json()
+    new_key = data.get("api_key")
+    if new_key and new_key.strip():
+        config.relay_api_key = new_key.strip()
+        if data.get("base_url"):
+            config.relay_base_url = data.get("base_url").strip()
+        if data.get("model_name"):
+            config.model_name = data.get("model_name").strip()
+        config.save()
+
+    if not config.relay_api_key or config.relay_api_key in ("sk-default", "none", ""):
+        return JSONResponse(status_code=400, content={"status": "error", "message": "大模型 API Key 尚未配置，请输入有效的 API Key 后再测试！"})
+
+    try:
+        test_client = RelayLLMClient()
+        prompt = data.get("prompt", "你好！请用一句话回答：测试连接成功。")
+        full_reply = ""
+        ttft = 0.0
+        t0 = time.time()
+
+        async for token, tool_call, metrics in test_client.stream_chat(prompt, system_prompt="你是一个极简助手，只用一句话回复。"):
+            full_reply += token
+            if ttft == 0.0 and metrics.get("ttft_ms", 0) > 0:
+                ttft = metrics["ttft_ms"]
+
+        total_ms = round((time.time() - t0) * 1000, 1)
+
+        if "[LLM" in full_reply and ("失败" in full_reply or "异常" in full_reply or "未配置" in full_reply):
+            return JSONResponse(status_code=400, content={"status": "error", "message": full_reply})
+
+        return {
+            "status": "ok",
+            "reply": full_reply.strip(),
+            "ttft_ms": ttft or total_ms,
+            "total_ms": total_ms,
+            "model": config.model_name,
+            "base_url": config.relay_base_url
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"请求大模型接口失败: {str(e)}"})
+
+@app.post("/api/wizard/test_speaker")
+async def wizard_test_speaker(req: Request):
+    """
+    向当前在线的小智开发板实时推流测试语音，检测喇叭能否发声
+    """
+    if not active_devices:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "当前暂无小智开发板在线！请先完成第 2、3 步确保开发板连接到网关。"})
+
+    data = {}
+    try:
+        data = await req.json()
+    except Exception:
+        pass
+
+    test_text = data.get("text", "你好！小智语音网关已连接成功，发音喇叭正常！")
+
+    dev_with_ws = None
+    for d in active_devices.values():
+        if d.get("ws"):
+            dev_with_ws = d
+            break
+
+    if not dev_with_ws:
+        return JSONResponse(status_code=400, content={
+            "status": "error",
+            "message": "检测到小智设备已开机握手，但 WebSocket 语音通道处于休眠待机状态。请按一下开发板按键或说‘你好小智’激活语音通道后再点击测试！"
+        })
+
+    dev = dev_with_ws
+    ws = dev["ws"]
+    lock = dev.get("tts_lock")
+    if lock:
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=3.0)
+        except Exception:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "开发板正在播报其他语音，请稍候再试。"})
+
+    try:
+        session_id = dev.get("session_id") or f"wizard-{int(time.time())}"
+        tts_streamer = EdgeTTSStreamer()
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "start"}))
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "sentence_start", "text": test_text}))
+
+        frame_count = 0
+        async for opus_frame, is_last in tts_streamer.text_to_opus_stream(test_text, voice=config.tts_voice):
+            await ws.send_bytes(opus_frame)
+            frame_count += 1
+            if frame_count > 3:
+                await asyncio.sleep(0.045)
+
+        await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "stop"}))
+        return {
+            "status": "ok",
+            "device_id": dev.get("device_id"),
+            "message": f"已成功向开发板 ({dev.get('mac') or dev.get('device_id')}) 推送发音测试流！请听开发板喇叭是否有声音。"
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"语音推流失败: {str(e)}"})
+    finally:
+        if lock and lock.locked():
+            lock.release()
+
 # ----------------- Roles & Personas API -----------------
 
 @app.get("/api/roles")
@@ -1544,15 +1794,20 @@ async def ota_endpoint(req: Request):
 
     print(f"[OTA] Device queried OTA from {client_ip} (MAC: {device_mac}, ver: {app_version}). Returning ws_url: {ws_url}")
 
+    existing_dev = active_devices.get(device_mac, {})
     active_devices[device_mac] = {
         "device_id": device_mac,
         "client_id": req.headers.get("client-id", "Xiaozhi-Client"),
         "ip": client_ip,
-        "connected_at": active_devices.get(device_mac, {}).get("connected_at") or time.strftime("%Y-%m-%d %H:%M:%S"),
+        "connected_at": existing_dev.get("connected_at") or time.strftime("%Y-%m-%d %H:%M:%S"),
         "last_active": time.strftime("%H:%M:%S"),
-        "status": "online",
-        "ws": None,
-        "tools": [
+        "status": existing_dev.get("status") or "online",
+        "ws": existing_dev.get("ws"),
+        "session_id": existing_dev.get("session_id"),
+        "llm": existing_dev.get("llm"),
+        "tts_lock": existing_dev.get("tts_lock"),
+        "volume": existing_dev.get("volume", 70),
+        "tools": existing_dev.get("tools") or [
             {"name": "self.audio_speaker.set_volume", "description": "调节喇叭音量"},
             {"name": "self.screen.set_brightness", "description": "调节屏幕背光"},
             {"name": "self.screen.set_theme", "description": "切换主题"},

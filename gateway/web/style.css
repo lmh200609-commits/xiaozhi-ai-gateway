@@ -1642,5 +1642,68 @@ body {
   box-shadow: 0 4px 12px rgba(37,99,235,0.06);
 }
 
+/* ================= Setup Wizard Styles ================= */
+.wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.step-item.active {
+  color: #2563eb;
+  font-weight: 700;
+}
+.step-item.completed {
+  color: #16a34a;
+  font-weight: 600;
+}
+.step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.step-item.active .step-num {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(37,99,235,0.35);
+}
+.step-item.completed .step-num {
+  background: #16a34a;
+  color: #fff;
+}
+.step-divider {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  margin: 0 8px;
+}
+.wiz-banner-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+
 
 

@@ -2289,6 +2289,460 @@ function copyToClipboard(text, successMsg = '已复制到剪贴板！') {
   }
 }
 
+// ================= Step-by-Step Setup & Connection Wizard (连网配置向导) =================
+let currentWizStep = 1;
+let wizPollTimer = null;
+let wizDetectedData = null;
+
+function openWizardModal() {
+  const modal = document.getElementById('wizard-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  goToWizardStep(1);
+  wizDetectData();
+}
+
+function closeWizardModal() {
+  const modal = document.getElementById('wizard-modal');
+  if (modal) modal.style.display = 'none';
+  if (wizPollTimer) {
+    clearInterval(wizPollTimer);
+    wizPollTimer = null;
+  }
+  try {
+    localStorage.setItem('xiaozhi_wizard_seen', 'true');
+  } catch (e) {}
+}
+
+function goToWizardStep(step) {
+  currentWizStep = step;
+
+  // Update step indicators
+  for (let i = 1; i <= 5; i++) {
+    const ind = document.getElementById(`wiz-step-ind-${i}`);
+    const panel = document.getElementById(`wiz-step-${i}`);
+    if (ind) {
+      ind.classList.remove('active', 'completed');
+      if (i === step) {
+        ind.classList.add('active');
+      } else if (i < step) {
+        ind.classList.add('completed');
+      }
+    }
+    if (panel) {
+      panel.style.display = (i === step) ? 'block' : 'none';
+    }
+  }
+
+  // Footer Buttons
+  const btnPrev = document.getElementById('wiz-btn-prev');
+  const btnNext = document.getElementById('wiz-btn-next');
+  const btnSkip = document.getElementById('wiz-btn-skip');
+  const btnFinish = document.getElementById('wiz-btn-finish');
+
+  if (btnPrev) btnPrev.style.display = (step > 1) ? 'inline-flex' : 'none';
+  if (btnSkip) btnSkip.style.display = (step === 2 || step === 3) ? 'inline-flex' : 'none';
+
+  if (step === 5) {
+    if (btnNext) btnNext.style.display = 'none';
+    if (btnFinish) btnFinish.style.display = 'inline-flex';
+  } else {
+    if (btnNext) {
+      btnNext.style.display = 'inline-flex';
+      const nextLabels = {
+        1: "下一步：USB 识别与 Wi-Fi 刷写 →",
+        2: "下一步：检测在线握手 →",
+        3: "下一步：AI 大模型与发音自测 →",
+        4: "下一步：完成配置 →"
+      };
+      btnNext.textContent = nextLabels[step] || "下一步 →";
+    }
+    if (btnFinish) btnFinish.style.display = 'none';
+  }
+
+  // Handle step-specific triggers
+  if (step === 3) {
+    startWizHandshakePolling();
+  } else {
+    if (wizPollTimer) {
+      clearInterval(wizPollTimer);
+      wizPollTimer = null;
+    }
+  }
+
+  if (step === 4) {
+    wizRefreshLlmState();
+  }
+}
+
+function wizNextStep() {
+  if (currentWizStep < 5) {
+    goToWizardStep(currentWizStep + 1);
+  }
+}
+
+function wizPrevStep() {
+  if (currentWizStep > 1) {
+    goToWizardStep(currentWizStep - 1);
+  }
+}
+
+function wizSkipStep() {
+  wizNextStep();
+}
+
+async function wizDetectData() {
+  try {
+    const res = await fetch('/api/wizard/detect');
+    if (!res.ok) return;
+    const data = await res.json();
+    wizDetectedData = data;
+
+    // Step 1: IP & Port
+    const ipEl = document.getElementById('wiz-step1-ip');
+    const portEl = document.getElementById('wiz-step1-port');
+    if (ipEl) ipEl.textContent = data.lan_ip || '127.0.0.1';
+    if (portEl) portEl.textContent = `${data.port || 8001} (服务就绪)`;
+
+    // Step 2: Ports & Wi-Fi
+    const portSelect = document.getElementById('wiz-step2-port');
+    const portHint = document.getElementById('wiz-step2-port-hint');
+    if (portSelect) {
+      portSelect.innerHTML = '';
+      if (data.ports && data.ports.length > 0) {
+        data.ports.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.port;
+          opt.textContent = `${p.port} - ${p.description}${p.is_esp ? ' (⭐ESP32芯片推荐)' : ''}`;
+          if (p.port === data.recommended_port) opt.selected = true;
+          portSelect.appendChild(opt);
+        });
+        if (portHint) {
+          portHint.textContent = `已自动识别到开发板串口：${data.recommended_port || data.ports[0].port}`;
+          portHint.style.color = '#16a34a';
+        }
+      } else {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '未检测到可用 USB 串口，请用 USB 线连接开发板并重试';
+        portSelect.appendChild(opt);
+        if (portHint) {
+          portHint.textContent = '⚠️ 暂未检测到 USB 串口设备，请确认小智开发板已通过数据线连接电脑！';
+          portHint.style.color = '#dc2626';
+        }
+      }
+    }
+
+    const ssidIn = document.getElementById('wiz-step2-ssid');
+    const passIn = document.getElementById('wiz-step2-pass');
+    if (ssidIn && !ssidIn.value) ssidIn.value = data.current_ssid || '';
+    if (passIn && !passIn.value) passIn.value = data.current_password || '';
+
+    // Step 4: LLM Key
+    const keyInput = document.getElementById('wiz-llm-key-input');
+    const badge = document.getElementById('wiz-llm-status-badge');
+    if (keyInput && data.has_api_key && currentConfig && currentConfig.relay_api_key) {
+      keyInput.value = currentConfig.relay_api_key;
+    }
+    if (badge) {
+      if (data.llm_ready) {
+        badge.textContent = '✅ API Key 已配置';
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#15803d';
+      } else {
+        badge.textContent = '⚠️ 尚未配置 API Key';
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#92400e';
+      }
+    }
+  } catch (err) {
+    console.error("wizDetectData error:", err);
+  }
+}
+
+async function wizDetectPorts() {
+  const portHint = document.getElementById('wiz-step2-port-hint');
+  if (portHint) {
+    portHint.textContent = '🔄 正在重新扫描系统串口...';
+    portHint.style.color = '#2563eb';
+  }
+  await wizDetectData();
+}
+
+async function wizDoFlash() {
+  const port = document.getElementById('wiz-step2-port')?.value;
+  const ssid = document.getElementById('wiz-step2-ssid')?.value?.trim();
+  const password = document.getElementById('wiz-step2-pass')?.value?.trim();
+  const feedback = document.getElementById('wiz-flash-feedback');
+  const btnFlash = document.getElementById('btn-wiz-flash');
+
+  if (!port) {
+    alert("请先选择小智开发板的 USB 串口！");
+    return;
+  }
+  if (!ssid) {
+    alert("请输入 Wi-Fi 名称 (SSID)！");
+    return;
+  }
+
+  if (btnFlash) {
+    btnFlash.disabled = true;
+    btnFlash.textContent = "⚡ 正在生成 NVS 固件并刷入开发板，请稍候约 5 秒...";
+  }
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = '#eff6ff';
+    feedback.style.color = '#1e40af';
+    feedback.style.border = '1px solid #bfdbfe';
+    feedback.innerHTML = `⏳ 正在通过 <strong>${port}</strong> 写入 Wi-Fi【${escapeHtml(ssid)}】与网关参数，板子指示灯可能闪烁...`;
+  }
+
+  try {
+    const res = await fetch('/api/wizard/flash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port, ssid, password })
+    });
+    const result = await res.json();
+    if (res.ok && result.status === 'ok') {
+      if (feedback) {
+        feedback.style.background = '#f0fdf4';
+        feedback.style.color = '#166534';
+        feedback.style.border = '1px solid #86efac';
+        feedback.innerHTML = `<strong>🎉 写入成功！</strong><br>${result.message}<br><button class="btn btn-primary" onclick="goToWizardStep(3)" style="margin-top:10px; font-size:12px;">立即前往检测握手 →</button>`;
+      }
+    } else {
+      if (feedback) {
+        feedback.style.background = '#fef2f2';
+        feedback.style.color = '#991b1b';
+        feedback.style.border = '1px solid #fecaca';
+        feedback.innerHTML = `<strong>❌ 写入失败：</strong> ${result.message || '未知错误'}`;
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.background = '#fef2f2';
+      feedback.style.color = '#991b1b';
+      feedback.style.border = '1px solid #fecaca';
+      feedback.innerHTML = `<strong>❌ 写入异常：</strong> ${err.message}`;
+    }
+  } finally {
+    if (btnFlash) {
+      btnFlash.disabled = false;
+      btnFlash.textContent = "⚡ 一键将 Wi-Fi 与电脑网关地址写入开发板 (自动重启)";
+    }
+  }
+}
+
+function startWizHandshakePolling() {
+  wizCheckDeviceOnline();
+  if (!wizPollTimer) {
+    wizPollTimer = setInterval(wizCheckDeviceOnline, 1500);
+  }
+}
+
+async function wizCheckDeviceOnline() {
+  try {
+    const res = await fetch('/api/wizard/detect');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const icon = document.getElementById('wiz-handshake-icon');
+    const title = document.getElementById('wiz-handshake-title');
+    const desc = document.getElementById('wiz-handshake-desc');
+    const card = document.getElementById('wiz-dev-details-card');
+
+    if (data.devices_online > 0 && data.devices && data.devices.length > 0) {
+      const dev = data.devices[0];
+      if (icon) icon.textContent = '🟢';
+      if (title) {
+        title.textContent = `🎉 握手成功！小智开发板已连上电脑网关！`;
+        title.style.color = '#15803d';
+      }
+      if (desc) desc.textContent = `小智开发板已成功通过 Wi-Fi 建立 WebSocket 双工语音通道。`;
+      if (card) {
+        card.style.display = 'block';
+        document.getElementById('wiz-dev-mac').textContent = dev.mac || dev.device_id || 'ESP32-S3';
+        document.getElementById('wiz-dev-ip').textContent = dev.ip || '局域网';
+        document.getElementById('wiz-dev-ver').textContent = dev.version || 'v2.2.6';
+      }
+
+      // Update next button
+      const btnNext = document.getElementById('wiz-btn-next');
+      if (btnNext) {
+        btnNext.className = "btn btn-success";
+        btnNext.style.background = "#16a34a";
+        btnNext.textContent = "下一步：AI 大模型与发音自测 →";
+      }
+    } else {
+      if (icon) icon.textContent = '🔄';
+      if (title) {
+        title.textContent = '正在等待小智开发板连网上线...';
+        title.style.color = '#0f172a';
+      }
+      if (desc) desc.textContent = '板子重启后约需 3~8 秒连接 Wi-Fi，请保持板子通电...';
+      if (card) card.style.display = 'none';
+    }
+  } catch (err) {
+    console.error("wizCheckDeviceOnline error:", err);
+  }
+}
+
+async function wizRefreshLlmState() {
+  try {
+    const res = await fetch('/api/wizard/detect');
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('wiz-llm-status-badge');
+    if (badge) {
+      if (data.llm_ready) {
+        badge.textContent = '✅ API Key 已配置';
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#15803d';
+      } else {
+        badge.textContent = '⚠️ 尚未配置 API Key';
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#92400e';
+      }
+    }
+  } catch (err) {
+    console.error("wizRefreshLlmState error:", err);
+  }
+}
+
+async function wizSaveApiKey() {
+  const input = document.getElementById('wiz-llm-key-input');
+  const key = input ? input.value.trim() : '';
+  if (!key) {
+    alert("请输入有效的 API Key！");
+    return;
+  }
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ relay_api_key: key })
+    });
+    if (res.ok) {
+      alert("API Key 保存成功！");
+      wizRefreshLlmState();
+    } else {
+      alert("保存失败，请重试！");
+    }
+  } catch (err) {
+    alert("网络异常: " + err.message);
+  }
+}
+
+async function wizDoTestLLM() {
+  const btn = document.getElementById('btn-wiz-test-llm');
+  const feedback = document.getElementById('wiz-llm-feedback');
+  const keyInput = document.getElementById('wiz-llm-key-input');
+  const key = keyInput ? keyInput.value.trim() : '';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ 测试中...';
+  }
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = '#eff6ff';
+    feedback.style.color = '#1e40af';
+    feedback.style.border = '1px solid #bfdbfe';
+    feedback.textContent = '正在向大模型发送短文本测试连通性与响应速度...';
+  }
+
+  try {
+    const res = await fetch('/api/wizard/test_llm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key, prompt: "请用一句话回答：测试连接成功。" })
+    });
+    const result = await res.json();
+    if (res.ok && result.status === 'ok') {
+      if (feedback) {
+        feedback.style.background = '#f0fdf4';
+        feedback.style.color = '#166534';
+        feedback.style.border = '1px solid #86efac';
+        feedback.innerHTML = `<strong>✅ 大模型响应正常！</strong> (首字延迟 TTFT: <strong>${result.ttft_ms}ms</strong>)<br>🤖 回复：${escapeHtml(result.reply)}<br><small style="color:#15803d;">模型: ${result.model} | 接口: ${result.base_url}</small>`;
+      }
+      wizRefreshLlmState();
+    } else {
+      if (feedback) {
+        feedback.style.background = '#fef2f2';
+        feedback.style.color = '#991b1b';
+        feedback.style.border = '1px solid #fecaca';
+        feedback.innerHTML = `<strong>❌ 大模型测试失败：</strong><br>${escapeHtml(result.message || '请求异常')}`;
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.background = '#fef2f2';
+      feedback.style.color = '#991b1b';
+      feedback.style.border = '1px solid #fecaca';
+      feedback.innerHTML = `<strong>❌ 请求异常：</strong> ${err.message}`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🧪 测试大模型';
+    }
+  }
+}
+
+async function wizDoTestSpeaker() {
+  const btn = document.getElementById('btn-wiz-test-speaker');
+  const feedback = document.getElementById('wiz-speaker-feedback');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> 正在向小智开发板推流语音...';
+  }
+  if (feedback) {
+    feedback.style.display = 'block';
+    feedback.style.background = '#eff6ff';
+    feedback.style.color = '#1e40af';
+    feedback.style.border = '1px solid #bfdbfe';
+    feedback.textContent = '正在通过 Edge-TTS 生成 Opus 音频流并通过 WebSocket 推送到开发板...';
+  }
+
+  try {
+    const res = await fetch('/api/wizard/test_speaker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: "你好！小智语音网关已连接成功，发音喇叭正常！" })
+    });
+    const result = await res.json();
+    if (res.ok && result.status === 'ok') {
+      if (feedback) {
+        feedback.style.background = '#f0fdf4';
+        feedback.style.color = '#166534';
+        feedback.style.border = '1px solid #86efac';
+        feedback.innerHTML = `<strong>🔊 语音已成功推送！</strong><br>${result.message}<br><small style="color:#15803d;">如果听到开发板清晰说话，说明音频解码与 I2S 喇叭完全正常！</small>`;
+      }
+    } else {
+      if (feedback) {
+        feedback.style.background = '#fef2f2';
+        feedback.style.color = '#991b1b';
+        feedback.style.border = '1px solid #fecaca';
+        feedback.innerHTML = `<strong>❌ 发音测试失败：</strong> ${result.message || '未检测到在线设备'}`;
+      }
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.background = '#fef2f2';
+      feedback.style.color = '#991b1b';
+      feedback.style.border = '1px solid #fecaca';
+      feedback.innerHTML = `<strong>❌ 推流异常：</strong> ${err.message}`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔊</span> 点击让小智开发板喇叭发声测试';
+    }
+  }
+}
+
 // ================= Bootstrap Initialization =================
 
 function initApp() {
@@ -2306,6 +2760,20 @@ function initApp() {
 
   setInterval(fetchStatus, 2000);
   setInterval(fetchLogs, 1500);
+
+  // Auto-open wizard if first time and no devices online
+  setTimeout(async () => {
+    try {
+      const seen = localStorage.getItem('xiaozhi_wizard_seen');
+      const res = await fetch('/api/wizard/detect');
+      if (res.ok) {
+        const d = await res.json();
+        if (!seen && d.devices_online === 0) {
+          openWizardModal();
+        }
+      }
+    } catch (e) {}
+  }, 1200);
 }
 
 if (document.readyState === 'loading') {

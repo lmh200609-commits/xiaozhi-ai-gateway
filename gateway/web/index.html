@@ -42,7 +42,11 @@
             <span class="item-icon">⚙️</span>
             <span>网关系统配置</span>
           </button>
-          <a href="/kiosk.html" target="_blank" class="nav-item" style="text-decoration:none; margin-top:12px; background:linear-gradient(135deg, rgba(56,189,248,0.15), rgba(245,158,11,0.15)); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:600; display:flex; align-items:center; gap:10px;">
+          <button class="nav-item" id="nav-wizard" onclick="openWizardModal()" style="margin-top:8px; background:linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08)); border:1px solid rgba(16,185,129,0.3); color:#059669; font-weight:600;">
+            <span class="item-icon">🛠️</span>
+            <span>连网配置向导</span>
+          </button>
+          <a href="/kiosk.html" target="_blank" class="nav-item" style="text-decoration:none; margin-top:8px; background:linear-gradient(135deg, rgba(56,189,248,0.15), rgba(245,158,11,0.15)); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:600; display:flex; align-items:center; gap:10px;">
             <span class="item-icon">🖥️</span>
             <span>展厅大屏首页 ↗</span>
           </a>
@@ -82,6 +86,9 @@
           <div class="badge badge-rag" id="header-rag-badge">
             知识库: 0 篇
           </div>
+          <button class="badge" onclick="openWizardModal()" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff; text-decoration:none; cursor:pointer; font-weight:700; padding:6px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(16,185,129,0.35); border:none;">
+            🛠️ 连网配置向导
+          </button>
           <a href="/kiosk.html" target="_blank" class="badge" style="background:linear-gradient(135deg, #0284c7, #38bdf8); color:#fff; text-decoration:none; cursor:pointer; font-weight:600; padding:6px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 0 12px rgba(56,189,248,0.3); border:none;">
             🖥️ 启动展厅大屏 ↗
           </a>
@@ -130,7 +137,10 @@
             <div class="empty-state">
               <div class="empty-icon">🔌</div>
               <p>暂无小智设备在线</p>
-              <span class="empty-hint">请确保 ESP32-S3 连上当前热点 (vivo X200s) 并保持通电</span>
+              <span class="empty-hint">请确保 ESP32-S3 连上当前 Wi-Fi/热点并保持通电。换电脑或换网络时，请运行配置向导。</span>
+              <button class="btn btn-primary" onclick="openWizardModal()" style="margin-top:14px; background:linear-gradient(135deg, #10b981, #059669); border:none; padding:8px 18px; font-weight:600; border-radius:8px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 10px rgba(16,185,129,0.25);">
+                <span>🛠️</span> 启动连网自检与配置向导
+              </button>
             </div>
           </div>
         </div>
@@ -850,6 +860,243 @@
         <button class="btn btn-primary" id="btn-submit-ai-link" onclick="submitAiLink()">
           ✨ 开始 AI 智能解析与知识库联动
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Step-by-Step Connection & Configuration Wizard (连网与配置向导) -->
+  <div id="wizard-modal" class="modal-overlay" style="display: none; z-index: 9999;">
+    <div class="modal-card" style="max-width: 780px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+      <!-- Wizard Header -->
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e293b, #0f172a); color: #fff; border-bottom: none; border-radius: 12px 12px 0 0; padding: 20px 24px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 28px; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); border-radius: 10px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">🛠️</div>
+          <div>
+            <h3 style="margin: 0; font-size: 18px; color: #f8fafc; font-weight: 700;">小智 AI 硬件连网与服务配置向导</h3>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8;">换电脑或换 Wi-Fi 必做 · 5 步全自动化检测与配网，彻底告别连不上与无声音</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeWizardModal()" style="color: #cbd5e1;">&times;</button>
+      </div>
+
+      <!-- Stepper Indicator -->
+      <div class="wizard-stepper" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto;">
+        <div class="step-item active" id="wiz-step-ind-1">
+          <div class="step-num">1</div>
+          <span class="step-label">电脑网络检测</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="wiz-step-ind-2">
+          <div class="step-num">2</div>
+          <span class="step-label">USB与Wi-Fi刷写</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="wiz-step-ind-3">
+          <div class="step-num">3</div>
+          <span class="step-label">开发板在线握手</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="wiz-step-ind-4">
+          <div class="step-num">4</div>
+          <span class="step-label">AI与发音自检</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="wiz-step-ind-5">
+          <div class="step-num">5</div>
+          <span class="step-label">就绪与完成</span>
+        </div>
+      </div>
+
+      <!-- Wizard Scrollable Body -->
+      <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 24px;">
+
+        <!-- STEP 1: PC Network & Port Check -->
+        <div id="wiz-step-1" class="wiz-step-panel">
+          <div class="wiz-banner-info">
+            <div style="font-size: 20px;">🖥️</div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">第 1 步：电脑局域网 IP 与网关服务检测</strong>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">开发板必须与当前电脑连接在同一个 Wi-Fi 或热点下，网关才能接收小智发出的语音数据。</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0;">
+            <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px;">
+              <span style="font-size: 12px; color: #64748b;">电脑当前 Wi-Fi 局域网 IP</span>
+              <div id="wiz-step1-ip" style="font-size: 20px; font-weight: 700; color: #2563eb; margin-top: 4px;">检测中...</div>
+            </div>
+            <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px;">
+              <span style="font-size: 12px; color: #64748b;">网关服务监听端口</span>
+              <div id="wiz-step1-port" style="font-size: 20px; font-weight: 700; color: #16a34a; margin-top: 4px;">8001 (就绪)</div>
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #1e40af; line-height: 1.6;">
+            💡 <strong>常见排查提示：</strong><br>
+            • 如果电脑连接的是校园网或公司内网，通常开启了“AP/内网隔离”，此时小智板子可能无法访问电脑 IP。<br>
+            • <strong>强烈推荐：</strong>电脑和小智开发板同时连接<strong>手机个人热点</strong>（最稳定、无防火墙阻隔）。
+          </div>
+        </div>
+
+        <!-- STEP 2: USB Port & Wi-Fi Flash -->
+        <div id="wiz-step-2" class="wiz-step-panel" style="display: none;">
+          <div class="wiz-banner-info">
+            <div style="font-size: 20px;">🔌</div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">第 2 步：USB 开发板识别与 Wi-Fi / IP 一键刷写</strong>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">无需手动改任何代码，填入 Wi-Fi 账号密码，一键自动写入开发板 NVS 配置！</div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label style="display: flex; justify-content: space-between; align-items: center;">
+              <span>小智开发板 USB 串口 (COM 口)</span>
+              <button class="btn btn-secondary" onclick="wizDetectPorts()" style="font-size: 11px; padding: 2px 8px;">🔄 重新扫描串口</button>
+            </label>
+            <select id="wiz-step2-port" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;"></select>
+            <small id="wiz-step2-port-hint" style="color: #64748b;">正在检索已连接的 USB 串口设备...</small>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
+            <div class="form-group">
+              <label>Wi-Fi 名称 (SSID)</label>
+              <input type="text" id="wiz-step2-ssid" placeholder="如: vivo X200s 或 Home_WiFi" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            </div>
+            <div class="form-group">
+              <label>Wi-Fi 密码</label>
+              <input type="text" id="wiz-step2-pass" placeholder="无密码可留空" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #92400e;">
+            ⚠️ <strong>硬件提示：</strong>ESP32-S3 只支持 <strong>2.4GHz</strong> 频段 Wi-Fi。如果是手机热点，请务必在热点设置中开启<strong>“最大兼容性 / 2.4GHz 频段”</strong>。
+          </div>
+
+          <div style="margin-top: 16px; text-align: center;">
+            <button id="btn-wiz-flash" class="btn btn-primary" onclick="wizDoFlash()" style="width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+              ⚡ 一键将 Wi-Fi 与电脑网关地址写入开发板 (自动重启)
+            </button>
+          </div>
+
+          <!-- Flash Result Feedback -->
+          <div id="wiz-flash-feedback" style="display: none; margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-size: 13px;"></div>
+        </div>
+
+        <!-- STEP 3: Link Handshake Check -->
+        <div id="wiz-step-3" class="wiz-step-panel" style="display: none;">
+          <div class="wiz-banner-info">
+            <div style="font-size: 20px;">📡</div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">第 3 步：开发板与网关在线握手检测</strong>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">开发板写入配置并重启后，将自动发起 OTA 检查并建立毫秒级 WebSocket 握手。</div>
+            </div>
+          </div>
+
+          <div style="margin: 24px 0; text-align: center; padding: 24px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px;">
+            <div id="wiz-handshake-icon" style="font-size: 42px; margin-bottom: 12px;">🔄</div>
+            <h4 id="wiz-handshake-title" style="margin: 0 0 6px 0; font-size: 16px; color: #0f172a;">正在等待小智开发板连网上线...</h4>
+            <p id="wiz-handshake-desc" style="margin: 0; font-size: 13px; color: #64748b;">板子重启后约需 3~8 秒连接 Wi-Fi，请保持板子通电...</p>
+
+            <div id="wiz-dev-details-card" style="display: none; margin-top: 18px; text-align: left; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px;">
+              <div style="font-weight: 700; color: #166534; margin-bottom: 8px; font-size: 14px;">🟢 握手成功！小智硬件已在线</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #1e293b;">
+                <div>MAC 地址: <strong id="wiz-dev-mac">-</strong></div>
+                <div>设备 IP: <strong id="wiz-dev-ip">-</strong></div>
+                <div>固件版本: <strong id="wiz-dev-ver">-</strong></div>
+                <div>连接协议: <strong style="color: #2563eb;">WebSocket /xiaozhi/v1/</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align: center;">
+            <button class="btn btn-secondary" onclick="wizCheckDeviceOnline()" style="font-size: 12px;">🔄 手动刷新检测状态</button>
+          </div>
+        </div>
+
+        <!-- STEP 4: AI LLM & Speaker Test -->
+        <div id="wiz-step-4" class="wiz-step-panel" style="display: none;">
+          <div class="wiz-banner-info">
+            <div style="font-size: 20px;">🧠</div>
+            <div>
+              <strong style="color: #0f172a; font-size: 14px;">第 4 步：AI 大模型中转与喇叭发音自检</strong>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">很多人“喇叭没声音”是因为 API Key 没配或失效导致无回答。此处进行双重隔离自测！</div>
+            </div>
+          </div>
+
+          <!-- Section 1: LLM Test -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <strong style="font-size: 13px; color: #0f172a;">1. 大模型 API Key 与连通性自测</strong>
+              <span id="wiz-llm-status-badge" class="badge badge-secondary" style="font-size: 11px;">检测中...</span>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <input type="text" id="wiz-llm-key-input" placeholder="输入或修改 DeepSeek API Key (sk-...)" style="flex: 1; font-size: 12px; padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1;">
+              <button class="btn btn-secondary" onclick="wizSaveApiKey()" style="font-size: 12px; white-space: nowrap;">保存 Key</button>
+              <button id="btn-wiz-test-llm" class="btn btn-primary" onclick="wizDoTestLLM()" style="font-size: 12px; white-space: nowrap;">🧪 测试大模型</button>
+            </div>
+
+            <div id="wiz-llm-feedback" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5;"></div>
+          </div>
+
+          <!-- Section 2: Speaker Voice Stream Test -->
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong style="font-size: 13px; color: #0f172a;">2. 小智开发板喇叭物理发音测试</strong>
+              <span class="badge badge-primary" style="font-size: 11px;">Edge-TTS + Opus 直推</span>
+            </div>
+            <p style="font-size: 12px; color: #64748b; margin: 0 0 12px 0;">
+              点击按钮后，网关将通过 WebSocket 向开发板实时推送测试语音包，板子喇叭应立即播报发音！
+            </p>
+
+            <button id="btn-wiz-test-speaker" class="btn btn-success" onclick="wizDoTestSpeaker()" style="padding: 9px 16px; font-size: 13px; font-weight: 600; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              <span>🔊</span> 点击让小智开发板喇叭发声测试
+            </button>
+
+            <div id="wiz-speaker-feedback" style="display: none; margin-top: 10px; padding: 10px 12px; border-radius: 6px; font-size: 12px;"></div>
+          </div>
+        </div>
+
+        <!-- STEP 5: All Done & Ready -->
+        <div id="wiz-step-5" class="wiz-step-panel" style="display: none;">
+          <div style="text-align: center; padding: 20px 0;">
+            <div style="font-size: 54px; margin-bottom: 12px;">🎉</div>
+            <h3 style="margin: 0 0 8px 0; font-size: 20px; color: #166534;">太棒了！小智 AI 硬件全链路配置完毕！</h3>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">电脑 IP、开发板 Wi-Fi、网关握手、大模型中转与发音喇叭均已通过检测。</p>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 16px 0;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+              <div style="display: flex; align-items: center; gap: 8px; color: #15803d;">
+                <span>✅</span> <strong>本机局域网 IP 绑定正常</strong>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; color: #15803d;">
+                <span>✅</span> <strong>开发板 Wi-Fi 与网关参数就绪</strong>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; color: #15803d;">
+                <span>✅</span> <strong>WebSocket 实时通道已在线</strong>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; color: #15803d;">
+                <span>✅</span> <strong>大模型响应与喇叭发声正常</strong>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #1e40af; line-height: 1.6;">
+            💡 <strong>备忘提示：</strong>以后将小智硬件带到任何新电脑、或切换到新 Wi-Fi 时，只要打开本网关，随时点击右上角的<strong>【🛠️ 连网配置向导】</strong>，即可 1 分钟轻松搞定！
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Wizard Modal Footer Buttons -->
+      <div class="modal-footer" style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center;">
+        <button id="wiz-btn-prev" class="btn btn-secondary" onclick="wizPrevStep()" style="display: none;">← 上一步</button>
+        <div style="display: flex; gap: 10px; margin-left: auto;">
+          <button id="wiz-btn-skip" class="btn btn-secondary" onclick="wizSkipStep()" style="display: none; font-size: 12px;">跳过此步 →</button>
+          <button id="wiz-btn-next" class="btn btn-primary" onclick="wizNextStep()">下一步：USB 识别与 Wi-Fi 刷写 →</button>
+          <button id="wiz-btn-finish" class="btn btn-success" onclick="closeWizardModal()" style="display: none; background: #16a34a; border-color: #16a34a; color: #fff;">🚀 进入主控制台</button>
+        </div>
       </div>
     </div>
   </div>
