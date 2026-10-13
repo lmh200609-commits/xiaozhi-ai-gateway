@@ -2471,6 +2471,25 @@ async function wizFixFirewall() {
   }
 }
 
+async function wizWakeupBoard() {
+  const portSelect = document.getElementById('wiz-step2-port');
+  const port = portSelect ? portSelect.value : '';
+  try {
+    const res = await fetch('/api/wizard/wakeup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port: port })
+    });
+    const d = await res.json();
+    alert(d.message || '唤醒指令已发送！');
+    if (d.status === 'ok') {
+      setTimeout(wizCheckDeviceOnline, 2500);
+    }
+  } catch (err) {
+    alert('唤醒操作失败: ' + err.message);
+  }
+}
+
 async function wizDetectData() {
   try {
     const res = await fetch('/api/wizard/detect');

@@ -378,6 +378,30 @@ async def wizard_fix_firewall():
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
+@app.post("/api/wizard/wakeup")
+async def wizard_wakeup(req: Request):
+    """
+    通过串口 DTR/RTS 硬件电平时序，一键软件唤醒/复位小智开发板 (解决插入USB黑屏/死机/卡在下载模式的问题)
+    """
+    data = await req.json()
+    port = data.get("port")
+    if not port:
+        try:
+            from gateway.scripts.auto_sync_nvs import find_esp32_port
+            port = find_esp32_port()
+        except Exception:
+            pass
+    if not port:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "未找到可用的小智 USB 串口，请检查数据线连接！"})
+
+    try:
+        from gateway.scripts.auto_sync_nvs import reset_esp32_via_serial
+        loop = asyncio.get_event_loop()
+        ok, msg = await loop.run_in_executor(None, reset_esp32_via_serial, port)
+        return {"status": "ok" if ok else "error", "message": msg, "port": port}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"唤醒过程异常: {str(e)}"})
+
 @app.post("/api/wizard/flash")
 async def wizard_flash(req: Request):
     """

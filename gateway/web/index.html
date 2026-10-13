@@ -968,7 +968,10 @@
           <div class="form-group" style="margin-top: 14px;">
             <label style="display: flex; justify-content: space-between; align-items: center;">
               <span>小智开发板 USB 串口 (COM 口)</span>
-              <button class="btn btn-secondary" onclick="wizDetectPorts()" style="font-size: 11px; padding: 2px 8px;">🔄 重新扫描串口</button>
+              <div>
+                <button class="btn btn-secondary" onclick="wizDetectPorts()" style="font-size: 11px; padding: 2px 8px;">🔄 扫描串口</button>
+                <button class="btn btn-warning" onclick="wizWakeupBoard()" style="font-size: 11px; padding: 2px 8px; background: #eab308; color: #fff; border: none; border-radius: 4px; margin-left: 6px; font-weight: 600;">⚡ 软件唤醒开机 (黑屏点我)</button>
+              </div>
             </label>
             <select id="wiz-step2-port" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;"></select>
             <small id="wiz-step2-port-hint" style="color: #64748b;">正在检索已连接的 USB 串口设备...</small>
@@ -989,16 +992,16 @@
 
           <div style="margin-top: 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #92400e; line-height: 1.6;">
             📌 <strong>为什么在其他电脑或其他网络上小智可能连不上？</strong><br>
-            1. <strong>公司/校园/酒店网络 (AP客户端隔离)</strong>：企业级路由器通常开启了“隔离”功能，禁止局域网设备互连，板子无法与电脑通信。<br>
-            2. <strong>网页登录/Portal认证 Wi-Fi</strong>：需要跳出网页输验证码的网络，小智无法自动点击认证。<br>
-            3. <strong>5GHz 频段 Wi-Fi</strong>：小智硬件只认 2.4GHz 频段。<br>
-            4. <strong>旧网络残留</strong>：换了电脑或 Wi-Fi 后，小智芯片内仍保存着旧电脑 IP，必须用数据线连接电脑后点击下方【一键写入】！<br>
+            1. <strong>黑屏/未启动现象</strong>：有时接入 USB 数据线，电脑串口驱动可能使板子处于待机/Bootloader 模式，点击上方【⚡ 软件唤醒开机】或轻按板子侧边 RST 复位键即可瞬间开机；<br>
+            2. <strong>公司/校园/酒店网络 (AP客户端隔离)</strong>：企业级路由器通常开启了“隔离”功能，禁止局域网设备互连，板子无法与电脑通信；<br>
+            3. <strong>5GHz 频段 Wi-Fi</strong>：小智硬件只认 2.4GHz 频段；<br>
+            4. <strong>旧网络残留</strong>：换了电脑或 Wi-Fi 后，必须用数据线连接电脑后点击下方【一键写入】！<br>
             👉 <strong>最省心推荐方案：</strong>电脑和小智同时连<strong>手机 2.4G 个人热点</strong>（无内网隔离、随身携带走哪都能用）。
           </div>
 
           <div style="margin-top: 16px; text-align: center;">
             <button id="btn-wiz-flash" class="btn btn-primary" onclick="wizDoFlash()" style="width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-              ⚡ 一键将 Wi-Fi 与电脑网关地址写入开发板 (自动重启)
+              ⚡ 一键将 Wi-Fi 与电脑网关地址写入开发板 (自动重启开机)
             </button>
           </div>
 
@@ -1020,6 +1023,18 @@
             <div id="wiz-handshake-icon" style="font-size: 42px; margin-bottom: 12px;">🔄</div>
             <h4 id="wiz-handshake-title" style="margin: 0 0 6px 0; font-size: 16px; color: #0f172a;">正在等待小智开发板连网上线...</h4>
             <p id="wiz-handshake-desc" style="margin: 0; font-size: 13px; color: #64748b;">板子重启后约需 3~8 秒连接 Wi-Fi，请保持板子通电...</p>
+
+            <!-- Black Screen / Wakeup Assistance Card -->
+            <div id="wiz-handshake-blackscreen-help" style="margin-top: 16px; background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 12px 14px; text-align: left; font-size: 12px; color: #854d0e; line-height: 1.6;">
+              <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <span>💡 开发板屏幕当前处于黑屏状态、无反应？</span>
+                <button class="btn btn-warning" onclick="wizWakeupBoard()" style="font-size: 11px; padding: 3px 10px; background: #eab308; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">⚡ 软件唤醒开机</button>
+              </div>
+              <div>
+                • <strong>软件唤醒</strong>：由于插入 USB 时电脑串口驱动可能让板子停在待机/Bootloader 模式，点击【⚡ 软件唤醒开机】立即发送硬件复位脉冲，秒级点亮屏幕开机！<br>
+                • <strong>物理按键</strong>：亦可轻按一下小智开发板侧面的 <strong>RST 复位按键 / 侧键</strong> 即可点亮屏幕正常启动。
+              </div>
+            </div>
 
             <div id="wiz-dev-details-card" style="display: none; margin-top: 18px; text-align: left; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px;">
               <div style="font-weight: 700; color: #166534; margin-bottom: 8px; font-size: 14px;">🟢 握手成功！小智硬件已在线</div>

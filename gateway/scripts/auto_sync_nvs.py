@@ -98,21 +98,53 @@ def generate_nvs_bin_file(csv_path, bin_path):
         except Exception:
             return False
 
+def reset_esp32_via_serial(port):
+    """
+    通过精确的 DTR/RTS 硬件电平时序，强制唤醒/复位 ESP32，
+    使其退出黑屏/Bootloader下载模式，并强制从 Flash (SPI_FAST_FLASH_BOOT) 启动！
+    """
+    if not port:
+        return False, "未指定串口端口"
+    try:
+        import serial
+        ser = serial.Serial(port, 115200, timeout=1)
+        ser.setDTR(False)  # IO0 高电平，绝不进下载模式
+        ser.setRTS(True)   # EN 低电平，复位芯片
+        time.sleep(0.15)
+        ser.setRTS(False)  # EN 高电平，释放复位
+        time.sleep(0.05)
+        ser.setDTR(False)
+        ser.setRTS(False)
+        ser.close()
+        return True, f"已向 {port} 发送硬件唤醒开机信号，小智开发板正在启动！"
+    except Exception as e:
+        return False, f"唤醒串口 {port} 失败: {str(e)}"
+
 def flash_nvs_bin_file(port, bin_path):
-    """将 bin 写入开发板 NVS 分区，优先使用内存模块调用"""
+    """将 bin 写入开发板 NVS 分区，并在完成后硬件级复位唤醒开发板，杜绝黑屏死机"""
+    ok = False
     try:
         import esptool
-        esptool.main(["-p", port, "write-flash", "0x9000", str(bin_path)])
-        return True
+        esptool.main(["-p", port, "--after", "no_reset", "write_flash", "0x9000", str(bin_path)])
+        ok = True
     except SystemExit as se:
-        return se.code == 0
+        ok = (se.code == 0)
     except Exception:
         try:
-            cmd = [sys.executable, "-m", "esptool", "-p", port, "write-flash", "0x9000", str(bin_path)]
+            cmd = [sys.executable, "-m", "esptool", "-p", port, "--after", "no_reset", "write_flash", "0x9000", str(bin_path)]
             res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR))
-            return res.returncode == 0
+            ok = (res.returncode == 0)
         except Exception:
-            return False
+            ok = False
+
+    # 刷写完成后，立即发送精准 DTR/RTS 硬件唤醒脉冲，确保板子脱离 Bootloader 下载黑屏状态
+    try:
+        time.sleep(0.15)
+        reset_esp32_via_serial(port)
+    except Exception:
+        pass
+
+    return ok
 
 def get_current_wifi_info():
     """获取当前 Windows 电脑实际连接的 Wi-Fi 名称、频段(2.4G/5G)与保存的密码"""
@@ -209,7 +241,9 @@ def sync_nvs(target_port=None, force_flash=False):
             
     updated_content = "\n".join(new_lines) + "\n"
 
-    port = target_port or find_esp32_port()
+    port = target_port
+    if force_flash and not port:
+        port = find_esp32_port()
 
     # 1. Update CSV and recompile BIN if IP changed or BIN missing or force_flash
     if needs_update or not NVS_BIN.exists() or force_flash:
