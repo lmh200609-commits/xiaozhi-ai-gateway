@@ -348,7 +348,8 @@ async def wizard_detect():
         "llm_ready": llm_ready,
         "model_name": config.model_name,
         "relay_base_url": config.relay_base_url,
-        "has_api_key": llm_ready
+        "has_api_key": llm_ready,
+        "api_key": config.relay_api_key or ""
     }
 
 @app.post("/api/wizard/flash")

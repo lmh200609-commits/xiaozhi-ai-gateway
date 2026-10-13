@@ -44,6 +44,8 @@ function switchTab(tabName) {
       fetchRoles();
     } else if (tabName === 'devices') {
       fetchStatus();
+    } else if (tabName === 'settings') {
+      loadConfigInputs();
     }
   } catch (err) {
     console.error("switchTab error:", err);
@@ -2212,14 +2214,25 @@ async function sendSimulation() {
 }
 
 // ================= System Settings =================
+function toggleApiKeyVisibility(evt) {
+  const input = document.getElementById('cfg-api-key');
+  if (!input) return;
+  const btn = (evt && (evt.currentTarget || evt.target)) || document.querySelector('button[onclick*="toggleApiKeyVisibility"]');
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (btn) btn.textContent = '🙈 隐藏';
+  } else {
+    input.type = 'password';
+    if (btn) btn.textContent = '👁️ 显示';
+  }
+}
+
 async function loadConfigInputs() {
   try {
-    if (!currentConfig || !currentConfig.relay_base_url) {
-      const res = await fetch('/api/status');
-      if (res.ok) {
-        const data = await res.json();
-        currentConfig = data.config || {};
-      }
+    const res = await fetch('/api/status');
+    if (res.ok) {
+      const data = await res.json();
+      currentConfig = data.config || {};
     }
     const rUrl = document.getElementById('cfg-relay-url');
     const rKey = document.getElementById('cfg-api-key');
@@ -2232,18 +2245,37 @@ async function loadConfigInputs() {
     if (rMod) rMod.value = currentConfig.model_name || 'deepseek-chat';
     if (rTts) rTts.value = currentConfig.tts_voice || 'zh-CN-YunxiNeural';
     if (rPrm) rPrm.value = currentConfig.system_prompt || '';
+
+    // Synchronize to wizard input if present
+    const wizKey = document.getElementById('wiz-llm-key-input');
+    if (wizKey && currentConfig.relay_api_key && !wizKey.value) {
+      wizKey.value = currentConfig.relay_api_key;
+    }
   } catch (e) {
     console.error("loadConfigInputs error:", e);
   }
 }
 
 async function saveConfig() {
+  const rUrl = document.getElementById('cfg-relay-url');
+  const rKey = document.getElementById('cfg-api-key');
+  const rMod = document.getElementById('cfg-model-name');
+  const rTts = document.getElementById('cfg-tts-voice');
+  const rPrm = document.getElementById('cfg-prompt');
+
+  let keyVal = rKey ? rKey.value.trim() : '';
+  // Fallback: if user didn't modify it but currentConfig has it, preserve it
+  if (!keyVal && currentConfig && currentConfig.relay_api_key) {
+    keyVal = currentConfig.relay_api_key;
+    if (rKey) rKey.value = keyVal;
+  }
+
   const newConfig = {
-    relay_base_url: (document.getElementById('cfg-relay-url') ? document.getElementById('cfg-relay-url').value.trim() : ''),
-    relay_api_key: (document.getElementById('cfg-api-key') ? document.getElementById('cfg-api-key').value.trim() : ''),
-    model_name: (document.getElementById('cfg-model-name') ? document.getElementById('cfg-model-name').value.trim() : ''),
-    tts_voice: (document.getElementById('cfg-tts-voice') ? document.getElementById('cfg-tts-voice').value : 'zh-CN-YunxiNeural'),
-    system_prompt: (document.getElementById('cfg-prompt') ? document.getElementById('cfg-prompt').value.trim() : ''),
+    relay_base_url: (rUrl ? rUrl.value.trim() : '') || 'https://api.deepseek.com/v1',
+    relay_api_key: keyVal,
+    model_name: (rMod ? rMod.value.trim() : '') || 'deepseek-chat',
+    tts_voice: (rTts ? rTts.value : 'zh-CN-YunxiNeural'),
+    system_prompt: (rPrm ? rPrm.value.trim() : ''),
   };
 
   try {
@@ -2253,13 +2285,17 @@ async function saveConfig() {
       body: JSON.stringify(newConfig)
     });
     if (res.ok) {
+      currentConfig = { ...currentConfig, ...newConfig };
+      const wizKey = document.getElementById('wiz-llm-key-input');
+      if (wizKey) wizKey.value = keyVal;
       fetchStatus();
+      wizRefreshLlmState();
       alert("全局配置已成功保存！");
     } else {
-      alert("保存配置失败");
+      alert("保存配置失败，请检查网关运行状态！");
     }
   } catch (err) {
-    alert("保存失败: " + err);
+    alert("网络异常: " + err);
   }
 }
 
@@ -2302,7 +2338,26 @@ function openWizardModal() {
   wizDetectData();
 }
 
-function closeWizardModal() {
+async function autoSyncWizardApiKey() {
+  const wizKeyInput = document.getElementById('wiz-llm-key-input');
+  const key = wizKeyInput ? wizKeyInput.value.trim() : '';
+  if (key && (!currentConfig || currentConfig.relay_api_key !== key)) {
+    try {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ relay_api_key: key })
+      });
+      if (currentConfig) currentConfig.relay_api_key = key;
+      const cfgKey = document.getElementById('cfg-api-key');
+      if (cfgKey) cfgKey.value = key;
+    } catch (e) {
+      console.warn("autoSyncWizardApiKey failed:", e);
+    }
+  }
+}
+
+async function closeWizardModal() {
   const modal = document.getElementById('wizard-modal');
   if (modal) modal.style.display = 'none';
   if (wizPollTimer) {
@@ -2312,6 +2367,10 @@ function closeWizardModal() {
   try {
     localStorage.setItem('xiaozhi_wizard_seen', 'true');
   } catch (e) {}
+
+  await autoSyncWizardApiKey();
+  fetchStatus();
+  loadConfigInputs();
 }
 
 function goToWizardStep(step) {
@@ -2344,6 +2403,7 @@ function goToWizardStep(step) {
   if (btnSkip) btnSkip.style.display = (step === 2 || step === 3) ? 'inline-flex' : 'none';
 
   if (step === 5) {
+    autoSyncWizardApiKey();
     if (btnNext) btnNext.style.display = 'none';
     if (btnFinish) btnFinish.style.display = 'inline-flex';
   } else {
@@ -2371,6 +2431,15 @@ function goToWizardStep(step) {
   }
 
   if (step === 4) {
+    const keyInput = document.getElementById('wiz-llm-key-input');
+    const cfgKey = document.getElementById('cfg-api-key');
+    if (keyInput && (!keyInput.value || !keyInput.value.trim())) {
+      if (cfgKey && cfgKey.value.trim()) {
+        keyInput.value = cfgKey.value.trim();
+      } else if (currentConfig && currentConfig.relay_api_key) {
+        keyInput.value = currentConfig.relay_api_key;
+      }
+    }
     wizRefreshLlmState();
   }
 }
@@ -2440,9 +2509,13 @@ async function wizDetectData() {
 
     // Step 4: LLM Key
     const keyInput = document.getElementById('wiz-llm-key-input');
+    const settingKeyInput = document.getElementById('cfg-api-key');
     const badge = document.getElementById('wiz-llm-status-badge');
-    if (keyInput && data.has_api_key && currentConfig && currentConfig.relay_api_key) {
-      keyInput.value = currentConfig.relay_api_key;
+    const existingKey = data.api_key || (currentConfig && currentConfig.relay_api_key) || '';
+    if (existingKey) {
+      if (keyInput && !keyInput.value) keyInput.value = existingKey;
+      if (settingKeyInput && !settingKeyInput.value) settingKeyInput.value = existingKey;
+      if (currentConfig) currentConfig.relay_api_key = existingKey;
     }
     if (badge) {
       if (data.llm_ready) {
@@ -2624,8 +2697,12 @@ async function wizSaveApiKey() {
       body: JSON.stringify({ relay_api_key: key })
     });
     if (res.ok) {
-      alert("API Key 保存成功！");
+      if (currentConfig) currentConfig.relay_api_key = key;
+      const cfgKey = document.getElementById('cfg-api-key');
+      if (cfgKey) cfgKey.value = key;
+      alert("✅ API Key 保存成功并已实时同步到网关系统配置！");
       wizRefreshLlmState();
+      fetchStatus();
     } else {
       alert("保存失败，请重试！");
     }
@@ -2660,13 +2737,19 @@ async function wizDoTestLLM() {
     });
     const result = await res.json();
     if (res.ok && result.status === 'ok') {
+      if (key) {
+        if (currentConfig) currentConfig.relay_api_key = key;
+        const cfgKey = document.getElementById('cfg-api-key');
+        if (cfgKey) cfgKey.value = key;
+      }
       if (feedback) {
         feedback.style.background = '#f0fdf4';
         feedback.style.color = '#166534';
         feedback.style.border = '1px solid #86efac';
-        feedback.innerHTML = `<strong>✅ 大模型响应正常！</strong> (首字延迟 TTFT: <strong>${result.ttft_ms}ms</strong>)<br>🤖 回复：${escapeHtml(result.reply)}<br><small style="color:#15803d;">模型: ${result.model} | 接口: ${result.base_url}</small>`;
+        feedback.innerHTML = `<strong>✅ 大模型响应正常！</strong> (首字延迟 TTFT: <strong>${result.ttft_ms}ms</strong>)<br>🤖 回复：${escapeHtml(result.reply)}<br><small style="color:#15803d;">模型: ${result.model} | 接口: ${result.base_url} (已自动同步并保存为网关系统配置)</small>`;
       }
       wizRefreshLlmState();
+      fetchStatus();
     } else {
       if (feedback) {
         feedback.style.background = '#fef2f2';
@@ -2757,6 +2840,22 @@ function initApp() {
   fetchVideos();
   fetchLogs();
   loadConfigInputs();
+
+  // Synchronize API Key inputs in real-time between Wizard and System Settings
+  const wizKeyIn = document.getElementById('wiz-llm-key-input');
+  const cfgKeyIn = document.getElementById('cfg-api-key');
+  if (wizKeyIn && cfgKeyIn) {
+    wizKeyIn.addEventListener('input', () => {
+      const val = wizKeyIn.value.trim();
+      cfgKeyIn.value = val;
+      if (currentConfig) currentConfig.relay_api_key = val;
+    });
+    cfgKeyIn.addEventListener('input', () => {
+      const val = cfgKeyIn.value.trim();
+      wizKeyIn.value = val;
+      if (currentConfig) currentConfig.relay_api_key = val;
+    });
+  }
 
   setInterval(fetchStatus, 2000);
   setInterval(fetchLogs, 1500);

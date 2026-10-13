@@ -102,7 +102,7 @@ def flash_nvs_bin_file(port, bin_path):
     """将 bin 写入开发板 NVS 分区，优先使用内存模块调用"""
     try:
         import esptool
-        esptool.main(["-p", port, "write_flash", "0x9000", str(bin_path)])
+        esptool.main(["-p", port, "write-flash", "0x9000", str(bin_path)])
         return True
     except SystemExit as se:
         return se.code == 0

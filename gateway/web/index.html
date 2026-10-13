@@ -529,7 +529,10 @@
             </div>
             <div class="form-group">
               <label>大模型 API 密钥 (API Key)</label>
-              <input type="password" id="cfg-api-key" placeholder="sk-..." style="font-family: monospace;">
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="cfg-api-key" placeholder="sk-..." style="flex: 1; font-family: monospace;">
+                <button type="button" class="btn btn-secondary" onclick="toggleApiKeyVisibility()" style="font-size: 12px; white-space: nowrap; padding: 6px 12px;" title="显示或隐藏密钥明文">👁️ 显示</button>
+              </div>
               <small>在对应服务商控制台申请的 API 密钥（如 DeepSeek 开发者控制台）</small>
             </div>
             <div class="form-group">
