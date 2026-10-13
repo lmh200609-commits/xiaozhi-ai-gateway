@@ -6,11 +6,6 @@
 ================================================================================
 本脚本为小智 AI 语音网关的主入口，兼容 Windows/Linux/macOS，自动完成环境检测、
 端口冲突清理、Wi-Fi IP 同步及自动打开 Web 控制台。
-
-常用启动方式:
-  1. 根目录下直接运行:   py -3.11 run.py  或  python run.py
-  2. 便携批处理双击:     start_gateway.bat
-  3. 指定端口与参数:     py -3.11 run.py --port 8001 --no-browser
 ================================================================================
 """
 
@@ -18,7 +13,15 @@ import os
 import sys
 from pathlib import Path
 
-# 1. 定位项目绝对根目录，并优先加入 sys.path
+# 1. Windows 控制台字符编码安全重定向 (防 GBK 乱码与 Unicode 崩溃)
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# 2. 定位项目绝对根目录，并优先加入 sys.path
 if getattr(sys, "frozen", False):
     PROJECT_ROOT = Path(sys.executable).resolve().parent
 else:
@@ -27,51 +30,7 @@ os.chdir(PROJECT_ROOT)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# 2. Windows 控制台字符编码安全重定向 (防无控制台时 NoneType 崩溃并支持静默日志)
-if sys.stdout is None:
-    class LoggerWriter:
-        def __init__(self, filepath):
-            self.filepath = filepath
-            self.encoding = "utf-8"
-            self.errors = "replace"
-        def write(self, s):
-            if not s or not self.filepath:
-                return
-            try:
-                with open(self.filepath, "a", encoding=self.encoding, errors=self.errors) as f:
-                    f.write(s)
-            except Exception:
-                pass
-        def flush(self):
-            pass
-        def isatty(self):
-            return False
-        def readable(self):
-            return False
-        def writable(self):
-            return True
-        def seekable(self):
-            return False
-
-    log_file = PROJECT_ROOT / "gateway.log"
-    sys.stdout = LoggerWriter(log_file)
-    sys.stderr = LoggerWriter(log_file)
-
-if sys.stdin is None:
-    class DummyStdin:
-        def read(self, *args): return ""
-        def readline(self, *args): return ""
-        def isatty(self): return False
-    sys.stdin = DummyStdin()
-elif hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
 import argparse
-import socket
 import subprocess
 import threading
 import time
@@ -79,10 +38,9 @@ import webbrowser
 
 def print_banner(host: str, port: int):
     print("=" * 64)
-    print("   🚀 小智 AI 语音网关 & 硬件服务平台 (Xiaozhi AI Gateway v2.0)")
+    print("   🚀 小智 AI 语音网关 & 硬件服务平台 (Xiaozhi AI Gateway)")
     print("=" * 64)
     print(f"[*] 项目根目录 : {PROJECT_ROOT}")
-    print(f"[*] Python 解释器: {sys.executable}")
     print(f"[*] 监听网络地址: http://{host}:{port}")
     print(f"[*] 本地控制台  : http://localhost:{port}")
     print("=" * 64)
@@ -116,23 +74,12 @@ def check_and_heal_dependencies():
             print(f"[!] 自动补齐依赖失败: {e}，请先执行 setup_env.bat")
 
 def cleanup_port(port: int):
-    """自动释放被旧网关残留进程占用的端口"""
+    """自动释放被旧网关残留进程占用的端口（纯安全无弹窗）"""
     try:
         from gateway.scripts.free_port import free_port
         free_port(port)
-    except Exception as e:
-        # 降级备用检查
-        try:
-            cmd = f'netstat -ano | findstr ":{port}.*LISTENING"'
-            res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            for line in res.stdout.strip().splitlines():
-                parts = line.split()
-                if len(parts) >= 5:
-                    pid = parts[-1]
-                    print(f"[*] 释放端口 {port} 占用进程 PID={pid}")
-                    subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 def sync_network_config():
     """检测 Wi-Fi IP 并同步到 NVS 配置"""
@@ -143,7 +90,7 @@ def sync_network_config():
     except Exception as e:
         return "127.0.0.1"
 
-def open_browser_delayed(url: str, delay: float = 2.0):
+def open_browser_delayed(url: str, delay: float = 1.5):
     """后台延时自动打开浏览器"""
     def _open():
         time.sleep(delay)
@@ -154,55 +101,12 @@ def open_browser_delayed(url: str, delay: float = 2.0):
             pass
     threading.Thread(target=_open, daemon=True).start()
 
-def ensure_single_instance():
-    """Windows 单实例互斥体检测：防止用户多次双击导致端口冲突或进程死锁"""
-    if sys.platform != "win32":
-        return None
-    try:
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        user32 = ctypes.windll.user32
-        ERROR_ALREADY_EXISTS = 183
-        SW_RESTORE = 9
-        mutex_name = "Global\\XiaozhiAIGateway_Desktop_Instance_Mutex"
-        mutex = kernel32.CreateMutexW(None, False, mutex_name)
-        if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
-            # 已经有实例在运行，尝试唤醒已有窗口
-            target_title = "小智 AI 语音网关 & 硬件服务平台"
-            hwnd = user32.FindWindowW(None, target_title)
-            if hwnd:
-                user32.ShowWindow(hwnd, SW_RESTORE)
-                user32.SetForegroundWindow(hwnd)
-            sys.exit(0)
-        return mutex
-    except SystemExit:
-        raise
-    except Exception:
-        return None
-
-def ensure_firewall_rule(port: int = 8001):
-    """自动检测并尝试放行 Windows 防火墙入站端口，避免外部开发板连接被拦截"""
-    if sys.platform != "win32":
-        return
-    try:
-        cmd_check = f'netsh advfirewall firewall show rule name="Xiaozhi AI Gateway ({port})"'
-        res = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
-        if "没有与指定条件匹配的规则" in res.stdout or "No rules match" in res.stdout:
-            cmd_add = f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({port})" dir=in action=allow protocol=TCP localport={port}'
-            subprocess.run(cmd_add, shell=True, capture_output=True)
-            print(f"[Firewall] 已尝试自动放行局域网入站端口 {port}")
-    except Exception:
-        pass
-
 def main():
-    _mutex = ensure_single_instance()
-
     parser = argparse.ArgumentParser(description="Xiaozhi AI Voice Gateway Launcher")
     parser.add_argument("--host", default="0.0.0.0", help="Binding host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8001, help="Binding port (default: 8001)")
     parser.add_argument("--reload", action="store_true", help="Enable uvicorn hot-reload")
     parser.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
-    parser.add_argument("--no-gui", action="store_true", help="Do not launch native desktop GUI window, run in console mode")
     args = parser.parse_args()
 
     # 1. 打印横幅
@@ -211,9 +115,8 @@ def main():
     # 2. 依赖自愈检测
     check_and_heal_dependencies()
 
-    # 3. 释放被占用的端口与放行防火墙
+    # 3. 释放被占用的端口
     cleanup_port(args.port)
-    ensure_firewall_rule(args.port)
 
     # 4. Wi-Fi IP 与固件 NVS 同步
     sync_network_config()
@@ -224,109 +127,36 @@ def main():
         model_path = PROJECT_ROOT / "models" / "sense-voice" / "model.int8.onnx"
         if not model_path.exists():
             print("[*] 首次运行检测：正在检查并准备 SenseVoice 离线语音识别模型...")
-            if sys.platform == "win32" and getattr(sys, "frozen", False) and not args.no_gui:
-                try:
-                    import ctypes
-                    ctypes.windll.user32.MessageBoxW(
-                        0,
-                        "首次运行提示:\n\n系统正在为您准备 SenseVoice 离线语音模型组件 (~230MB)。\n下载完成后将立即呈现控制台，请稍候约1分钟。",
-                        "小智 AI 语音网关 - 准备组件",
-                        0x40
-                    )
-                except Exception:
-                    pass
             check_and_download_models()
     except Exception as e:
         print(f"[*] 离线语音模型检查跳过: {e}")
 
-    # 5. 检测是否支持原生桌面窗口 (pywebview)
-    has_webview = False
-    if not args.no_gui:
-        try:
-            import webview
-            has_webview = True
-        except Exception as e:
-            print(f"[*] 未检测到原生窗口引擎或不可用: {e}，将以浏览器模式启动")
+    # 5. 延时调起浏览器
+    if not args.no_browser:
+        open_browser_delayed(f"http://localhost:{args.port}", delay=1.5)
 
-    if has_webview:
-        print("[*] 正在启动小智网关核心服务及原生桌面应用程序...")
+    # 6. 启动 Uvicorn 服务
+    print("[*] 正在启动网关核心服务...")
+    print("[*] 【提示】服务已正常运行中，若双击启动请保持控制台窗口运行（可最小化）。")
+    print("=" * 64)
+
+    try:
         import uvicorn
-        from gateway.main import app
-
-        uvicorn_config = uvicorn.Config(
-            app=app,
-            host=args.host,
-            port=args.port,
-            log_level="info",
-            access_log=False,
-            log_config=None,
-            use_colors=False
-        )
-        server = uvicorn.Server(uvicorn_config)
-        server_thread = threading.Thread(target=server.run, daemon=True)
-        server_thread.start()
-
-        # 等待后端服务端口监听就绪
-        for _ in range(60):
-            try:
-                s = socket.create_connection(("127.0.0.1", args.port), timeout=0.1)
-                s.close()
-                break
-            except Exception:
-                time.sleep(0.1)
-
-        print(f"[✓] 网关核心服务已就绪！正在打开原生桌面应用程序窗口...")
-        # 启动原生桌面窗口程序
-        try:
-            import webview
-            window = webview.create_window(
-                title="小智 AI 语音网关 & 硬件服务平台",
-                url=f"http://127.0.0.1:{args.port}",
-                width=1280,
-                height=820,
-                min_size=(980, 650),
-                text_select=True,
-                zoomable=True
-            )
-            webview.start()
-        except Exception as e:
-            print(f"[!] 原生桌面窗口启动异常: {e}，自动降级至默认浏览器模式...")
-            open_browser_delayed(f"http://localhost:{args.port}", delay=0.5)
-            while not server.should_exit:
-                time.sleep(1)
-        finally:
-            server.should_exit = True
-    else:
-        # 降级：控制台 + 浏览器模式
-        if not args.no_browser:
-            open_browser_delayed(f"http://localhost:{args.port}", delay=2.5)
-
-        print("[*] 正在启动网关核心进程...")
-        print("[*] 【重要提示】请保持此黑框窗口运行，最小化即可，不要关闭！")
-        print("=" * 64)
-
-        try:
-            import uvicorn
-            if getattr(sys, "frozen", False):
-                from gateway.main import app
-                uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=None, use_colors=False)
-            else:
-                uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info", log_config=None, use_colors=False)
-        except KeyboardInterrupt:
-            print("\n[*] 网关服务已收到中断信号，正在退出...")
-        except Exception as e:
-            print(f"\n[!] 网关服务异常退出: {e}")
-            import traceback
-            traceback.print_exc()
-            try:
-                with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
-                    traceback.print_exc(file=f)
-            except Exception:
-                pass
-            if getattr(sys, "frozen", False) and sys.stdin:
-                input("\n[!] 网关运行遇到异常，请按回车键关闭窗口...")
-        finally:
-            print("\n[!] 网关服务已停止。")
+        if getattr(sys, "frozen", False):
+            from gateway.main import app
+            uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        else:
+            uvicorn.run("gateway.main:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
+    except KeyboardInterrupt:
+        print("\n[*] 网关服务已收到中断信号，正在退出...")
+    except Exception as e:
+        print(f"\n[!] 网关服务异常: {e}")
+        import traceback
+        traceback.print_exc()
+        if getattr(sys, "frozen", False):
+            input("\n按回车键退出...")
+    finally:
+        print("\n[*] 网关服务已停止。")
 
 if __name__ == "__main__":
     import multiprocessing
@@ -336,20 +166,8 @@ if __name__ == "__main__":
     except (KeyboardInterrupt, SystemExit):
         pass
     except Exception as e:
+        print(f"\n[!] 启动遇到未捕获异常: {e}")
         import traceback
-        err_msg = traceback.format_exc()
-        try:
-            with open(PROJECT_ROOT / "crash.log", "w", encoding="utf-8") as f:
-                f.write(err_msg)
-        except Exception:
-            pass
-        # 弹窗提示，避免静默关闭用户不知道原因
-        try:
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(0, f"小智 AI 语音网关启动异常:\n\n{e}\n\n详细错误已记录至: crash.log", "小智网关启动异常", 0x10)
-        except Exception:
-            pass
-        if getattr(sys, "frozen", False) and sys.stdin:
-            input("\n[!] 网关启动遇到异常，请按回车键关闭窗口...")
-
-
+        traceback.print_exc()
+        if getattr(sys, "frozen", False):
+            input("\n按回车键退出...")

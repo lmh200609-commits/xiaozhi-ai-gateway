@@ -1671,6 +1671,7 @@ async def websocket_endpoint(websocket: WebSocket):
             return
 
         print(f"[ASR] User said ({asr_cost_ms:.1f}ms): {user_text}")
+        t_start = time.time()
         is_tts_playing = True
 
         # Broadcast visitor speech to kiosk screen IMMEDIATELY (0ms delay)

@@ -36,7 +36,7 @@ def build():
         "fastapi", "starlette", "multipart", "aiofiles", "websockets",
         "sherpa_onnx", "onnxruntime", "miniaudio", "edge_tts", "fastembed",
         "PIL", "PIL.Image", "PIL._imaging", "pyogg", "pyogg.opus", "pyogg.library_loader",
-        "tokenizers", "requests", "webview", "pythonnet", "clr", "clr_loader", "proxy_tools", "bottle",
+        "tokenizers", "requests", "proxy_tools", "bottle",
         "jieba", "pypdf", "docx", "serial", "esptool", "esp_idf_nvs_partition_gen",
         "sqlite3", "numpy", "pydantic", "httpx", "psutil",
         "gateway.main", "gateway.config", "gateway.audio.opus_codec", "gateway.audio.vad",
@@ -53,7 +53,7 @@ def build():
         "--noconfirm",
         "--clean",
         "--onedir",
-        "--windowed",
+        "--console",
         "--name", "XiaozhiGateway",
         "--distpath", str(dist_dir),
         "--workpath", str(build_dir),
@@ -67,9 +67,6 @@ def build():
         "--collect-all", "pyogg",
         "--collect-all", "PIL",
         "--collect-all", "tokenizers",
-        "--collect-all", "webview",
-        "--collect-all", "pythonnet",
-        "--collect-all", "clr_loader",
         "--collect-all", "psutil",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
@@ -150,21 +147,16 @@ def build():
     launcher_bat_gui = output_app_dir / "启动小智网关.bat"
     launcher_bat_gui.write_text(
         "@echo off\r\n"
-        "cd /d \"%~dp0\"\r\n"
-        "start XiaozhiGateway.exe\r\n",
-        encoding="utf-8"
-    )
-
-    launcher_bat_console = output_app_dir / "启动小智网关(控制台模式).bat"
-    launcher_bat_console.write_text(
-        "@echo off\r\n"
         "chcp 65001 >nul\r\n"
-        "title 小智 AI 语音网关 - 控制台调试模式\r\n"
+        "title 小智 AI 语音网关\r\n"
         "cd /d \"%~dp0\"\r\n"
         "echo ============================================================\r\n"
-        "echo    🚀 正在以控制台调试模式启动小智 AI 语音网关\r\n"
+        "echo    🚀 正在启动小智 AI 语音网关\r\n"
         "echo ============================================================\r\n"
-        "XiaozhiGateway.exe --no-gui\r\n"
+        "echo [*] 服务启动后将自动在浏览器中打开 Web 控制台 (http://localhost:8001)...\r\n"
+        "echo [*] 请保持此黑框窗口运行（可最小化），关闭窗口即停止网关服务。\r\n"
+        "echo. \r\n"
+        "XiaozhiGateway.exe\r\n"
         "pause\r\n",
         encoding="utf-8"
     )
@@ -235,8 +227,8 @@ def build():
         encoding="utf-8"
     )
 
-    print("[4/5] 正在创建便携发布压缩包 (XiaozhiGateway-v2.0-Vanilla.zip)...")
-    zip_file = dist_dir / "XiaozhiGateway-v2.0-Vanilla.zip"
+    print("[4/5] 正在创建便携发布压缩包 (XiaozhiGateway-v2.1-Vanilla.zip)...")
+    zip_file = dist_dir / "XiaozhiGateway-v2.1-Vanilla.zip"
     if zip_file.exists():
         zip_file.unlink()
 
@@ -253,13 +245,13 @@ def build():
     # Copy to repo release directory for GitHub direct download
     release_dir = PROJECT_ROOT / "release"
     release_dir.mkdir(parents=True, exist_ok=True)
-    release_zip = release_dir / "XiaozhiGateway-v2.0-Vanilla.zip"
+    release_zip = release_dir / "XiaozhiGateway-v2.1-Vanilla.zip"
     shutil.copy(zip_file, release_zip)
     print(f"  [✓] 已将免安装包同步至仓库发布目录: {release_zip.relative_to(PROJECT_ROOT)} ({zip_size_mb:.1f} MB)")
 
-    print("[5/5] 正在编译原生图形化安装向导 (XiaozhiGateway-v2.0-Setup.exe)...")
+    print("[5/5] 正在编译原生图形化安装向导 (XiaozhiGateway-v2.1-Setup.exe)...")
     csc_path = r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-    installer_exe = dist_dir / "XiaozhiGateway-v2.0-Setup.exe"
+    installer_exe = dist_dir / "XiaozhiGateway-v2.1-Setup.exe"
     cs_src = PROJECT_ROOT / "gateway" / "scripts" / "installer_template.cs"
 
     if os.path.exists(csc_path) and cs_src.exists():
@@ -277,7 +269,7 @@ def build():
         if csc_res.returncode == 0:
             installer_size_mb = installer_exe.stat().st_size / (1024 * 1024)
             print(f"  [✓] 原生安装向导生成成功: {installer_exe.name} ({installer_size_mb:.1f} MB)")
-            release_installer = release_dir / "XiaozhiGateway-v2.0-Setup.exe"
+            release_installer = release_dir / "XiaozhiGateway-v2.1-Setup.exe"
             shutil.copy(installer_exe, release_installer)
             print(f"  [✓] 已同步安装包至发布目录: {release_installer.relative_to(PROJECT_ROOT)}")
         else:
@@ -288,8 +280,8 @@ def build():
     print("=" * 64)
     print(f"🎉 纯净空白版打包已完成！")
     print(f"   便携版: {zip_file}")
-    if (dist_dir / "XiaozhiGateway-v2.0-Setup.exe").exists():
-        print(f"   安装包: {dist_dir / 'XiaozhiGateway-v2.0-Setup.exe'}")
+    if (dist_dir / "XiaozhiGateway-v2.1-Setup.exe").exists():
+        print(f"   安装包: {dist_dir / 'XiaozhiGateway-v2.1-Setup.exe'}")
     print("=" * 64)
     return True
 
