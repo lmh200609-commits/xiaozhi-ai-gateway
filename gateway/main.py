@@ -427,15 +427,22 @@ async def wizard_flash(req: Request):
 
     try:
         import serial.tools.list_ports
-        for p in serial.tools.list_ports.comports():
-            if p.device == port:
-                hwid = (p.hwid or "").lower()
-                desc = (p.description or "").lower()
-                if any(k in hwid or k in desc for k in ["bthenum", "bluetooth", "蓝牙"]):
-                    return JSONResponse(status_code=400, content={
-                        "status": "error", 
-                        "message": f"【{port}】为电脑自带的蓝牙虚拟端口，并非小智开发板！请使用支持数据传输的 USB-C 数据线重新插拔开发板；若无其他串口出现，请安装 CH340 串口驱动。"
-                    })
+        all_ports = list(serial.tools.list_ports.comports())
+        matching_port = next((p for p in all_ports if p.device == port), None)
+        if not matching_port:
+            port_names = [p.device for p in all_ports]
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": f"所选串口【{port}】当前未连接（可能已断开或重新插拔后端口号已变更）！当前电脑检测到的可用串口为: {port_names or '无'}。请插好数据线并点击刷新重新选择串口！"
+            })
+
+        hwid = (matching_port.hwid or "").lower()
+        desc = (matching_port.description or "").lower()
+        if any(k in hwid or k in desc for k in ["bthenum", "bluetooth", "蓝牙"]):
+            return JSONResponse(status_code=400, content={
+                "status": "error", 
+                "message": f"【{port}】为电脑自带的蓝牙虚拟端口，并非小智开发板！请使用支持数据传输的 USB-C 数据线重新插拔开发板；若无其他串口出现，请安装 CH340 串口驱动。"
+            })
 
         from gateway.scripts.auto_sync_nvs import get_current_wlan_ip, generate_nvs_bin_file, flash_nvs_bin_file, NVS_CSV, NVS_BIN
         if not lan_ip or lan_ip in ("127.0.0.1", "0.0.0.0"):
@@ -466,11 +473,11 @@ version,data,u32,1
 
         # Flash to board
         loop = asyncio.get_event_loop()
-        ok_flash = await loop.run_in_executor(None, flash_nvs_bin_file, port, NVS_BIN)
+        ok_flash, flash_msg = await loop.run_in_executor(None, flash_nvs_bin_file, port, NVS_BIN)
         if not ok_flash:
             return JSONResponse(status_code=500, content={
                 "status": "error", 
-                "message": f"写入串口 {port} 失败！请检查：1. 确认该串口为开发板（勿选蓝牙端口）；2. USB 数据线是否支持数据传输；3. 拔插 USB 后重试。"
+                "message": flash_msg
             })
 
         return {

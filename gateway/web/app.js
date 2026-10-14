@@ -2753,8 +2753,8 @@ async function wizDoFlash() {
       if (feedback) {
         feedback.style.background = '#fef2f2';
         feedback.style.color = '#991b1b';
-        feedback.style.border = '1px solid #fecaca';
-        feedback.innerHTML = `<strong>❌ 写入失败：</strong> ${result.message || '未知错误'}<br><small style="color: #64748b; margin-top: 6px; display: block;">提示：若电脑无法识别串口，可参考下方【免插线手机无线配网】，无需插线 1 分钟即可连通网关！</small>`;
+        const formattedMsg = escapeHtml(result.message || '未知错误').replace(/\n/g, '<br>');
+        feedback.innerHTML = `<strong>❌ 写入失败：</strong><br>${formattedMsg}<br><small style="color: #64748b; margin-top: 8px; display: block; border-top: 1px dashed #fca5a5; padding-top: 6px;">💡 提示：若电脑仍无法识别串口，推荐使用下方【免插线手机无线配网】，手机打开 192.168.4.1 输入 Wi-Fi 密码即可秒连电脑网关！</small>`;
       }
     }
   } catch (err) {

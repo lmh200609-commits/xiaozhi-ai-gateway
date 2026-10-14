@@ -214,44 +214,92 @@ def reset_esp32_via_serial(port):
     return False, f"唤醒串口 {port} 失败"
 
 def flash_nvs_bin_file(port, bin_path):
-    """将 bin 写入开发板 NVS 分区，使用 hard-reset 并在完成后发送精准唤醒脉冲，彻底告别黑屏"""
-    ok = False
-    if getattr(sys, "frozen", False):
-        try:
-            import esptool
-            esptool.main(["-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)])
-            ok = True
-        except SystemExit as se:
-            ok = (se.code == 0)
-        except Exception:
-            ok = False
-    else:
-        # 开发模式下优先使用独立子进程执行 esptool，操作系统级确保子进程退出后完全释放 COM 句柄
-        try:
-            cmd = [sys.executable, "-m", "esptool", "-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)]
-            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), timeout=25)
-            if res.returncode == 0:
-                ok = True
-        except Exception:
-            pass
+    """
+    将 bin 写入开发板 NVS 分区。
+    支持 ESP32 / ESP32-S3 / USB-Serial-JTAG / CH340 / CP2102。
+    具备端口释放等待、多级复位重试与详细错误回传。
+    """
+    import serial.tools.list_ports
+    
+    # 0. 确认端口仍在系统中（防止插拔后端口号变更）
+    avail = [p.device for p in serial.tools.list_ports.comports()]
+    if port not in avail:
+        return False, f"串口【{port}】当前未在系统中找到！当前在线端口: {avail or '无'}。若刚重新插拔，请点击刷新串口选择最新端口。"
 
-        # 备选：内存模块直接调用
-        if not ok:
+    # 1. 等待端口就绪（防止刚插上时 Windows PnP / usbser.sys 正在枚举导致的拒绝访问）
+    import serial
+    port_ready = False
+    last_err = ""
+    for _ in range(4):
+        try:
+            s = serial.Serial(port, 115200, timeout=0.5)
+            s.close()
+            port_ready = True
+            break
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.6)
+            
+    if not port_ready:
+        if "拒绝访问" in last_err or "PermissionError" in last_err or "13" in last_err:
+            return False, f"串口【{port}】正被系统独占或被串口监视软件占用（拒绝访问）。请关闭其他串口工具并重新拔插 USB 后重试。"
+        return False, f"串口【{port}】暂时无法打开: {last_err}"
+
+    # 2. 构造 esptool 刷写命令参数组合
+    # 兼容标准串口 (default-reset) 与 ESP32-S3 原生 USB-Serial-JTAG (usb-reset)
+    configs_to_try = [
+        ["--chip", "auto", "-p", port, "--before", "default_reset", "--after", "hard_reset", "write_flash", "0x9000", str(bin_path)],
+        ["--chip", "esp32s3", "-p", port, "--before", "usb_reset", "--after", "hard_reset", "write_flash", "0x9000", str(bin_path)],
+        ["--chip", "esp32s3", "-p", port, "--after", "hard_reset", "write_flash", "0x9000", str(bin_path)]
+    ]
+
+    ok = False
+    detail_err = ""
+    
+    for attempt, args in enumerate(configs_to_try):
+        if getattr(sys, "frozen", False):
             try:
-                import esptool
-                esptool.main(["-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)])
-                ok = True
-            except SystemExit as se:
-                ok = (se.code == 0)
-            except Exception:
+                import io, contextlib, esptool
+                f_out = io.StringIO()
+                with contextlib.redirect_stdout(f_out), contextlib.redirect_stderr(f_out):
+                    try:
+                        esptool.main(args)
+                        ok = True
+                    except SystemExit as se:
+                        ok = (se.code == 0)
+                if not ok:
+                    detail_err = f_out.getvalue().strip()
+            except Exception as e:
+                detail_err = str(e)
+                ok = False
+        else:
+            try:
+                cmd = [sys.executable, "-m", "esptool"] + args
+                res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), timeout=25)
+                if res.returncode == 0:
+                    ok = True
+                else:
+                    detail_err = (res.stderr or res.stdout or "").strip()
+            except Exception as e:
+                detail_err = str(e)
                 ok = False
 
-    # 刷写完成后，等待串口驱动释放，再次发送精准 DTR/RTS 硬件唤醒脉冲作为双保险
+        if ok:
+            break
+        time.sleep(0.8)
+
+    # 3. 刷写成功后进行硬件唤醒双保险
     if ok:
         time.sleep(0.4)
         reset_esp32_via_serial(port)
+        return True, "刷写成功并已发送开机脉冲"
 
-    return ok
+    # 若多次失败，提取简明核心报错，并提供精准引导
+    if any(k in detail_err for k in ["No serial data received", "Failed to connect", "timed out", "Could not open"]):
+        return False, "开发板未能自动进入下载模式。\n👉 硬件解决方法：长按板子侧边【BOOT 键】，同时轻按一下【RST 复位键】，松开 BOOT 键后再次点击【一键写入】！亦可直接使用下方【免插线手机配网】。"
+    
+    short_err = detail_err.splitlines()[-1] if detail_err else "通信超时"
+    return False, f"写入失败: {short_err}"
 
 def get_current_wifi_info():
     """获取当前 Windows 电脑实际连接的 Wi-Fi 名称、频段(2.4G/5G)与保存的密码"""
@@ -404,10 +452,11 @@ def sync_nvs(target_port=None, force_flash=False):
     # 2. Flash to board ONLY when force_flash=True (never blindly overwrite on startup)
     if force_flash and port and NVS_BIN.exists():
         print(f"[Auto-Sync] 检测到小智开发板连接在 {port}，正在一键写入新配置 (IP: {ip})...")
-        if flash_nvs_bin_file(port, NVS_BIN):
+        ok_flash, flash_res = flash_nvs_bin_file(port, NVS_BIN)
+        if ok_flash:
             print(f"[Auto-Sync] [成功] 已自动为小智开发板更新 IP: {ip}！开发板将自动重启连接。")
         else:
-            print(f"[Auto-Sync] 写入失败，请检查串口是否被其他程序占用。")
+            print(f"[Auto-Sync] 写入失败: {flash_res}")
     elif not port and force_flash:
         print(f"[Auto-Sync] 提示: 未检测到小智 USB 串口连接 (已更新本地文件配置)。")
 
