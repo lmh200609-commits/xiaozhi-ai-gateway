@@ -100,7 +100,7 @@ def build():
     dst_data = output_app_dir / "gateway" / "data"
     dst_data.mkdir(parents=True, exist_ok=True)
     src_data = PROJECT_ROOT / "gateway" / "data"
-    for item in ["roles.json", "zones.json", "knowledge.db"]:
+    for item in ["roles.json", "zones.json", "knowledge.db", "test_speaker.wav"]:
         s = src_data / item
         if s.exists():
             shutil.copy(s, dst_data / item)

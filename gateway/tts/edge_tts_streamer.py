@@ -1,10 +1,82 @@
+import os
+import sys
 import asyncio
 import re
+import tempfile
+import subprocess
+from pathlib import Path
 import miniaudio
 import numpy as np
 import edge_tts
 from gateway.config import config
 from gateway.audio.opus_codec import OpusEncoderWrapper
+
+def get_system_proxy() -> str | None:
+    """自动获取系统或环境变量配置的代理地址（兼容 Clash/v2ray 等工具）"""
+    for k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        v = os.environ.get(k)
+        if v:
+            if not v.startswith("http://") and not v.startswith("https://"):
+                v = f"http://{v}"
+            return v
+    try:
+        import winreg
+        reg = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        enable, _ = winreg.QueryValueEx(reg, "ProxyEnable")
+        if enable:
+            server, _ = winreg.QueryValueEx(reg, "ProxyServer")
+            if server:
+                if "=" in server:
+                    for part in server.split(";"):
+                        if part.startswith("http=") or part.startswith("https="):
+                            server = part.split("=", 1)[1]
+                            break
+                if not server.startswith("http://") and not server.startswith("https://"):
+                    server = f"http://{server}"
+                return server
+    except Exception:
+        pass
+    return None
+
+def offline_sapi_tts(text: str, sample_rate: int = 24000) -> np.ndarray | None:
+    """
+    Windows 本地原生 SAPI 离线语音合成引擎（零网络、零外部依赖、极速稳定）。
+    当微软 Edge 在线服务器 (speech.platform.bing.com) 受网络/防火墙阻断时自动兜底调用。
+    """
+    clean = text.replace('"', '""').replace('\n', ' ').replace('\r', ' ').strip()
+    if not clean:
+        return None
+
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wf, \
+         tempfile.NamedTemporaryFile(suffix='.vbs', delete=False) as vf:
+        wav_path = wf.name
+        vbs_path = vf.name
+
+    try:
+        vbs_code = f'''Set voice = CreateObject("SAPI.SpVoice")
+Set stream = CreateObject("SAPI.SpFileStream")
+stream.Open "{wav_path}", 3
+Set voice.AudioOutputStream = stream
+voice.Speak "{clean}"
+stream.Close
+'''
+        with open(vbs_path, 'w', encoding='gbk', errors='ignore') as f:
+            f.write(vbs_code)
+
+        res = subprocess.run(['cscript', '//nologo', vbs_path], capture_output=True, timeout=8)
+        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 44:
+            decoded = miniaudio.decode_file(wav_path, nchannels=1, sample_rate=sample_rate)
+            return np.array(decoded.samples, dtype=np.int16)
+    except Exception as e:
+        print(f"[TTS SAPI] 离线语音合成异常: {e}")
+    finally:
+        for p in (wav_path, vbs_path):
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+    return None
 
 # Comprehensive Unicode emoji regex pattern (strictly within emoji code blocks, preserving all Chinese characters)
 EMOJI_PATTERN = re.compile(
@@ -77,7 +149,8 @@ def clean_speech_text(text: str) -> str:
 
 class EdgeTTSStreamer:
     """
-    Synthesizes speech using Edge-TTS and directly encodes it to 24kHz 60ms Opus frames (1440 samples).
+    Synthesizes speech using Edge-TTS with auto-fallback to Windows local SAPI.
+    Directly encodes speech into 24kHz 60ms Opus frames (1440 samples).
     Matches ESP32 AUDIO_OUTPUT_SAMPLE_RATE = 24000.
     """
     def __init__(self, sample_rate: int = 24000):
@@ -86,36 +159,66 @@ class EdgeTTSStreamer:
 
     async def text_to_opus_stream(self, text: str, voice: str = None):
         """
-        Synthesizes a sentence to 24kHz PCM and yields 60ms Opus packets (1440 samples) sequentially.
+        Synthesizes a sentence to 24kHz PCM and yields 60ms Opus packets sequentially.
         Yields (opus_frame_bytes, is_last_frame).
+        Dual-Engine Architecture:
+        1. Primary: Edge-TTS (high quality neural voice with auto-detected proxy).
+        2. Fallback: Windows SAPI (instant offline speech engine when Edge server is blocked).
+        3. Failsafe: Bundled test WAV in gateway/data/ if available.
         """
         clean_text = clean_speech_text(text).strip()
         if not clean_text:
             return
 
+        pcm_samples = None
+
+        # 1. Primary: Try Edge-TTS
         active_voice = voice or config.tts_voice
-        communicate = edge_tts.Communicate(
-            clean_text,
-            voice=active_voice,
-            rate=config.tts_rate,
-            volume=config.tts_volume
-        )
-
-        mp3_chunks = []
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                mp3_chunks.append(chunk["data"])
-
-        if not mp3_chunks:
-            return
-
-        raw_mp3 = b"".join(mp3_chunks)
-        # Decode MP3 to 24kHz mono int16 PCM in memory
+        proxy = get_system_proxy()
         try:
-            decoded = miniaudio.decode(raw_mp3, nchannels=1, sample_rate=self.sample_rate)
-            pcm_samples = np.array(decoded.samples, dtype=np.int16)
+            communicate = edge_tts.Communicate(
+                clean_text,
+                voice=active_voice,
+                rate=config.tts_rate,
+                volume=config.tts_volume,
+                proxy=proxy,
+                connect_timeout=5,
+                receive_timeout=12
+            )
+
+            mp3_chunks = []
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    mp3_chunks.append(chunk["data"])
+
+            if mp3_chunks:
+                raw_mp3 = b"".join(mp3_chunks)
+                decoded = miniaudio.decode(raw_mp3, nchannels=1, sample_rate=self.sample_rate)
+                pcm_samples = np.array(decoded.samples, dtype=np.int16)
         except Exception as e:
-            print(f"[TTS] miniaudio decode failed: {e}")
+            print(f"[TTS] Edge-TTS 在线服务不可用 ({e})，正在自动无缝切换为 Windows 本地离线语音引擎...")
+
+        # 2. Fallback: Windows SAPI offline TTS
+        if pcm_samples is None or len(pcm_samples) == 0:
+            try:
+                loop = asyncio.get_event_loop()
+                pcm_samples = await loop.run_in_executor(None, offline_sapi_tts, clean_text, self.sample_rate)
+            except Exception as e:
+                print(f"[TTS] 离线 SAPI 执行失败: {e}")
+
+        # 3. Failsafe: Bundled test WAV
+        if pcm_samples is None or len(pcm_samples) == 0:
+            bundled_wav = Path(__file__).resolve().parent.parent / "data" / "test_speaker.wav"
+            if bundled_wav.exists():
+                try:
+                    decoded = miniaudio.decode_file(str(bundled_wav), nchannels=1, sample_rate=self.sample_rate)
+                    pcm_samples = np.array(decoded.samples, dtype=np.int16)
+                    print(f"[TTS] 已使用内置测试音频兜底输出: {bundled_wav.name}")
+                except Exception:
+                    pass
+
+        if pcm_samples is None or len(pcm_samples) == 0:
+            print(f"[TTS Error] 所有语音合成方案均不可用: '{clean_text}'")
             return
 
         # Slice PCM into 960-sample (60ms) chunks and encode

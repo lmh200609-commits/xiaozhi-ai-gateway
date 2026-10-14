@@ -978,8 +978,18 @@
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="display: flex; justify-content: space-between; align-items: center;">
+                <span>电脑局域网 IP (开发板连接目标)</span>
+                <small id="wiz-step2-ip-hint" style="color: #16a34a; font-weight: 600;">已自动获取当前网卡 IP</small>
+              </label>
+              <input type="text" id="wiz-step2-ip" placeholder="如: 10.73.39.206 或 192.168.43.100" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            </div>
             <div class="form-group">
-              <label>Wi-Fi 名称 (SSID)</label>
+              <label style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Wi-Fi 名称 (SSID)</span>
+                <button type="button" class="btn btn-secondary" onclick="wizSyncCurrentWifi(true)" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">🔄 自动读取当前网络</button>
+              </label>
               <input type="text" id="wiz-step2-ssid" placeholder="如: vivo X200s 或 Home_WiFi" style="font-size: 13px; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
             </div>
             <div class="form-group">
@@ -992,11 +1002,20 @@
 
           <div style="margin-top: 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #92400e; line-height: 1.6;">
             📌 <strong>为什么在其他电脑或其他网络上小智可能连不上？</strong><br>
-            1. <strong>黑屏/未启动现象</strong>：有时接入 USB 数据线，电脑串口驱动可能使板子处于待机/Bootloader 模式，点击上方【⚡ 软件唤醒开机】或轻按板子侧边 RST 复位键即可瞬间开机；<br>
-            2. <strong>公司/校园/酒店网络 (AP客户端隔离)</strong>：企业级路由器通常开启了“隔离”功能，禁止局域网设备互连，板子无法与电脑通信；<br>
-            3. <strong>5GHz 频段 Wi-Fi</strong>：小智硬件只认 2.4GHz 频段；<br>
-            4. <strong>旧网络残留</strong>：换了电脑或 Wi-Fi 后，必须用数据线连接电脑后点击下方【一键写入】！<br>
+            1. <strong>开发板连上热点却提示“检查新版本失败”</strong>：根本原因是开发板内部保存的依然是上一台电脑的旧 IP！换了新电脑后，必须将新电脑的局域网 IP 写进开发板；<br>
+            2. <strong>黑屏/未启动现象</strong>：有时接入 USB 数据线，电脑串口驱动可能使板子处于待机/Bootloader 模式，点击上方【⚡ 软件唤醒开机】或轻按板子侧边 RST 复位键即可瞬间开机；<br>
+            3. <strong>公司/校园/酒店网络 (AP客户端隔离)</strong>：企业级路由器通常开启了“隔离”功能，禁止局域网设备互连，板子无法与电脑通信；<br>
+            4. <strong>5GHz 频段 Wi-Fi</strong>：小智硬件只认 2.4GHz 频段，手机热点请选择 2.4GHz；<br>
             👉 <strong>最省心推荐方案：</strong>电脑和小智同时连<strong>手机 2.4G 个人热点</strong>（无内网隔离、随身携带走哪都能用）。
+          </div>
+
+          <div style="margin-top: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #166534; line-height: 1.6;">
+            💡 <strong>备选方案：免插线手机无线配网（若没有数据线或新电脑缺少 CH340 驱动）</strong><br>
+            1. 小智开发板通电开机，长按板子侧边 <strong>BOOT 键 5 秒</strong>（板子语音将提示“进入配网模式”）；<br>
+            2. 用手机连接小智发射的 Wi-Fi 热点（如 <code>Xiaozhi-XXXX</code>），在手机浏览器打开 <strong>http://192.168.4.1</strong>；<br>
+            3. 选中当前 Wi-Fi 热点并填写密码；<br>
+            4. <strong>关键步骤（防止“检查新版本失败”）：</strong>在配网页面的【OTA 地址 / 升级服务器】填入：<strong id="wiz-step2-ota-quick" style="color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px;">http://127.0.0.1:8001/ota/</strong>（若有 WebSocket 选项填入：<strong id="wiz-step2-ws-quick" style="color: #2563eb;">ws://127.0.0.1:8001/xiaozhi/v1/</strong>）；<br>
+            5. 点击保存重启，小智开发板即可完全无需插线无线秒连电脑网关！
           </div>
 
           <div style="margin-top: 16px; text-align: center;">
@@ -1033,6 +1052,18 @@
               <div>
                 • <strong>软件唤醒</strong>：由于插入 USB 时电脑串口驱动可能让板子停在待机/Bootloader 模式，点击【⚡ 软件唤醒开机】立即发送硬件复位脉冲，秒级点亮屏幕开机！<br>
                 • <strong>物理按键</strong>：亦可轻按一下小智开发板侧面的 <strong>RST 复位按键 / 侧键</strong> 即可点亮屏幕正常启动。
+              </div>
+            </div>
+
+            <!-- OTA Version Check Failure Assistance Card -->
+            <div id="wiz-handshake-ota-help" style="margin-top: 14px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 14px; text-align: left; font-size: 12px; color: #9f1239; line-height: 1.6;">
+              <div style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <span>⚠️ 开发板连上 Wi-Fi 却一直语音播报【检查新版本失败】？</span>
+                <button class="btn btn-danger" onclick="wizFixFirewall()" style="font-size: 11px; padding: 3px 10px; background: #e11d48; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">🛡️ 一键放行防火墙</button>
+              </div>
+              <div>
+                • <strong>原因 1（最常见）：Windows 防火墙拦截 8001 端口</strong>。手机热点属于“公用网络”，Windows 默认拦截外部设备访问电脑端口。请直接点击右上方【🛡️ 一键放行防火墙】，弹窗选【是】后，开发板下次重试即可秒通！<br>
+                • <strong>原因 2：开发板内部保存的依然是旧电脑 IP</strong>。换了电脑后，若第 2 步未能成功写入开发板（例如误选了蓝牙 COM 端口），板子还在尝试连旧电脑。请返回第 2 步选择 CH340 串口重新写入，或参考第 2 步下方【免插线手机配网】输入当前电脑 IP。
               </div>
             </div>
 
@@ -1082,7 +1113,7 @@
           <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <strong style="font-size: 13px; color: #0f172a;">2. 小智开发板喇叭物理发音测试</strong>
-              <span class="badge badge-primary" style="font-size: 11px;">Edge-TTS + Opus 直推</span>
+              <span class="badge badge-primary" style="font-size: 11px;">Edge-TTS + Windows 离线双引擎直推</span>
             </div>
             <p style="font-size: 12px; color: #64748b; margin: 0 0 12px 0;">
               点击按钮后，网关将通过 WebSocket 向开发板实时推送测试语音包，板子喇叭应立即播报发音！

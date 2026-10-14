@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
+using System.Security.Principal;
 
 namespace XiaozhiInstaller {
     public class InstallerForm : Form {
@@ -271,7 +272,7 @@ namespace XiaozhiInstaller {
                     try {
                         ProcessStartInfo psi = new ProcessStartInfo {
                             FileName = "netsh",
-                            Arguments = "advfirewall firewall add rule name=\"Xiaozhi AI Gateway (8001)\" dir=in action=allow protocol=TCP localport=8001",
+                            Arguments = "advfirewall firewall add rule name=\"Xiaozhi AI Gateway (8001)\" dir=in action=allow protocol=TCP localport=8001 profile=any",
                             CreateNoWindow = true,
                             UseShellExecute = false
                         };
@@ -340,6 +341,24 @@ namespace XiaozhiInstaller {
 
         [STAThread]
         static void Main() {
+            try {
+                WindowsIdentity id = WindowsIdentity.GetCurrent();
+                WindowsPrincipal principal = new WindowsPrincipal(id);
+                if (!principal.IsInRole(WindowsBuiltInRole.Administrator)) {
+                    ProcessStartInfo startInfo = new ProcessStartInfo();
+                    startInfo.UseShellExecute = true;
+                    startInfo.WorkingDirectory = Environment.CurrentDirectory;
+                    startInfo.FileName = Application.ExecutablePath;
+                    startInfo.Verb = "runas";
+                    try {
+                        Process.Start(startInfo);
+                        return;
+                    } catch {
+                        // User cancelled UAC prompt, continue with standard privileges
+                    }
+                }
+            } catch {}
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new InstallerForm());

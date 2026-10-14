@@ -2517,16 +2517,21 @@ async function wizDetectData() {
     if (portSelect) {
       portSelect.innerHTML = '';
       if (data.ports && data.ports.length > 0) {
+        let hasGenuine = false;
         data.ports.forEach(p => {
           const opt = document.createElement('option');
           opt.value = p.port;
-          opt.textContent = `${p.port} - ${p.description}${p.is_esp ? ' (⭐ESP32芯片推荐)' : ''}`;
+          opt.textContent = `${p.port} - ${p.description}`;
+          if (p.is_esp) hasGenuine = true;
           if (p.port === data.recommended_port) opt.selected = true;
           portSelect.appendChild(opt);
         });
-        if (portHint) {
-          portHint.textContent = `已自动识别到开发板串口：${data.recommended_port || data.ports[0].port}`;
+        if (hasGenuine && data.recommended_port) {
+          portHint.textContent = `已自动识别到开发板串口：${data.recommended_port}`;
           portHint.style.color = '#16a34a';
+        } else {
+          portHint.innerHTML = `⚠️ 仅检测到蓝牙/虚拟端口，并非小智开发板！请插好支持数据传输的 USB-C 数据线并安装 CH340 驱动；亦可参考下方【免插线手机无线配网】。`;
+          portHint.style.color = '#dc2626';
         }
       } else {
         const opt = document.createElement('option');
@@ -2540,25 +2545,62 @@ async function wizDetectData() {
       }
     }
 
+    // Step 2 IP field and quick ws / ota hints
+    const ipIn = document.getElementById('wiz-step2-ip');
+    const wsQuick = document.getElementById('wiz-step2-ws-quick');
+    const otaQuick = document.getElementById('wiz-step2-ota-quick');
+
+    if (ipIn && data.lan_ip) {
+      if (!ipIn.value || !ipIn.dataset.edited) {
+        ipIn.value = data.lan_ip;
+      }
+      if (!ipIn.dataset.listener) {
+        ipIn.dataset.listener = 'true';
+        ipIn.addEventListener('input', () => {
+          ipIn.dataset.edited = 'true';
+          const val = ipIn.value.trim();
+          if (val) {
+            if (wsQuick) wsQuick.textContent = `ws://${val}:${data.port || 8001}/xiaozhi/v1/`;
+            if (otaQuick) otaQuick.textContent = `http://${val}:${data.port || 8001}/ota/`;
+          }
+        });
+      }
+    }
+    if (wsQuick && data.lan_ip) {
+      wsQuick.textContent = `ws://${data.lan_ip}:${data.port || 8001}/xiaozhi/v1/`;
+    }
+    if (otaQuick && data.lan_ip) {
+      otaQuick.textContent = `http://${data.lan_ip}:${data.port || 8001}/ota/`;
+    }
+
     const ssidIn = document.getElementById('wiz-step2-ssid');
     const passIn = document.getElementById('wiz-step2-pass');
     const wifiHint = document.getElementById('wiz-step2-wifi-hint');
     const alert5g = document.getElementById('wiz-step2-5g-alert');
 
-    if (ssidIn) {
-      if (!ssidIn.value && data.current_ssid) ssidIn.value = data.current_ssid;
+    if (ssidIn && !ssidIn.dataset.listener) {
+      ssidIn.dataset.listener = 'true';
+      ssidIn.addEventListener('input', () => {
+        userManuallyEditedSsid = true;
+        updateWifiHint();
+      });
     }
-    if (passIn) {
-      if (!passIn.value && data.current_password) passIn.value = data.current_password;
+    if (passIn && !passIn.dataset.listener) {
+      passIn.dataset.listener = 'true';
+      passIn.addEventListener('input', () => {
+        userManuallyEditedSsid = true;
+      });
     }
 
-    if (wifiHint) {
-      if (data.current_ssid) {
-        wifiHint.innerHTML = `📡 已自动识别电脑当前连接的 Wi-Fi: <strong>${escapeHtml(data.current_ssid)}</strong> (频段: <strong>${escapeHtml(data.wifi_band || '2.4 GHz')}</strong>)`;
-      } else {
-        wifiHint.textContent = '';
-      }
+    if (!userManuallyEditedSsid && data.current_ssid) {
+      if (ssidIn) ssidIn.value = data.current_ssid;
+      if (passIn && data.current_password) passIn.value = data.current_password;
+    } else if (ssidIn && !ssidIn.value && data.current_ssid) {
+      ssidIn.value = data.current_ssid;
+      if (passIn && data.current_password) passIn.value = data.current_password;
     }
+
+    updateWifiHint();
 
     if (alert5g) {
       alert5g.style.display = data.is_5g ? 'block' : 'none';
@@ -2590,6 +2632,37 @@ async function wizDetectData() {
   }
 }
 
+let userManuallyEditedSsid = false;
+
+function updateWifiHint() {
+  const ssidIn = document.getElementById('wiz-step2-ssid');
+  const wifiHint = document.getElementById('wiz-step2-wifi-hint');
+  if (!wifiHint) return;
+  const currentSsid = (typeof wizDetectedData !== 'undefined' && wizDetectedData) ? wizDetectedData.current_ssid : '';
+  const currentBand = (typeof wizDetectedData !== 'undefined' && wizDetectedData) ? (wizDetectedData.wifi_band || '2.4 GHz') : '2.4 GHz';
+  const val = ssidIn ? ssidIn.value.trim() : '';
+
+  if (currentSsid && val && val !== currentSsid) {
+    wifiHint.innerHTML = `<span style="color: #b45309; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;">⚠️ 提示：表单填写的 Wi-Fi【<strong>${escapeHtml(val)}</strong>】与电脑当前网络【<strong>${escapeHtml(currentSsid)}</strong>】不一致。<a href="javascript:void(0)" onclick="wizSyncCurrentWifi(true)" style="color: #2563eb; text-decoration: underline; margin-left: 6px; font-weight: 600;">点此一键同步当前网络</a></span>`;
+  } else if (currentSsid) {
+    wifiHint.innerHTML = `📡 电脑当前网络: <strong>${escapeHtml(currentSsid)}</strong> (频段: <strong>${escapeHtml(currentBand)}</strong>) <span style="color: #16a34a; font-weight: 600;">已就绪</span>`;
+  } else {
+    wifiHint.innerHTML = `<span style="color: #64748b;">提示：若电脑未连接无线网卡，请手动在下方输入开发板需连接的 Wi-Fi 名称与密码</span>`;
+  }
+}
+
+function wizSyncCurrentWifi(force = false) {
+  if (typeof wizDetectedData === 'undefined' || !wizDetectedData) return;
+  const ssidIn = document.getElementById('wiz-step2-ssid');
+  const passIn = document.getElementById('wiz-step2-pass');
+  if (wizDetectedData.current_ssid && (force || !userManuallyEditedSsid || !ssidIn.value)) {
+    if (ssidIn) ssidIn.value = wizDetectedData.current_ssid;
+    if (passIn && wizDetectedData.current_password) passIn.value = wizDetectedData.current_password;
+    if (force) userManuallyEditedSsid = false;
+    updateWifiHint();
+  }
+}
+
 async function wizDetectPorts() {
   const portHint = document.getElementById('wiz-step2-port-hint');
   if (portHint) {
@@ -2603,16 +2676,28 @@ async function wizDoFlash() {
   const port = document.getElementById('wiz-step2-port')?.value;
   const ssid = document.getElementById('wiz-step2-ssid')?.value?.trim();
   const password = document.getElementById('wiz-step2-pass')?.value?.trim();
+  const lan_ip = document.getElementById('wiz-step2-ip')?.value?.trim();
   const feedback = document.getElementById('wiz-flash-feedback');
   const btnFlash = document.getElementById('btn-wiz-flash');
 
   if (!port) {
-    alert("请先选择小智开发板的 USB 串口！");
+    alert("请先选择小智开发板的 USB 串口！若列表无串口，请插好数据线并安装 CH340 驱动，或参考下方免插线无线配网。");
     return;
   }
   if (!ssid) {
     alert("请输入 Wi-Fi 名称 (SSID)！");
     return;
+  }
+  if (!lan_ip || lan_ip === '127.0.0.1' || lan_ip === '0.0.0.0') {
+    alert("电脑局域网 IP 不能为 127.0.0.1 或空！\n开发板必须通过真实的局域网 IP（例如手机热点分配的 192.168.xxx.xxx 或 10.xxx.xxx.xxx）访问电脑。\n请检查电脑是否已连上热点/Wi-Fi，并在第 2 步填入有效的电脑局域网 IP。");
+    return;
+  }
+  if (!password) {
+    const confirmNoPass = confirm(`⚠️ 提示：您填写的 Wi-Fi 密码为空！\n如果当前 Wi-Fi/热点【${ssid}】是有密码的，密码为空将导致开发板无法连接并自动退回配网模式！\n\n确定这是一个无密码的开放热点吗？`);
+    if (!confirmNoPass) {
+      document.getElementById('wiz-step2-pass')?.focus();
+      return;
+    }
   }
 
   if (btnFlash) {
@@ -2624,14 +2709,14 @@ async function wizDoFlash() {
     feedback.style.background = '#eff6ff';
     feedback.style.color = '#1e40af';
     feedback.style.border = '1px solid #bfdbfe';
-    feedback.innerHTML = `⏳ 正在通过 <strong>${port}</strong> 写入 Wi-Fi【${escapeHtml(ssid)}】与网关参数，板子指示灯可能闪烁...`;
+    feedback.innerHTML = `⏳ 正在通过 <strong>${port}</strong> 写入 Wi-Fi【${escapeHtml(ssid)}】与网关 IP【${escapeHtml(lan_ip || '自动')}】，板子指示灯可能闪烁...`;
   }
 
   try {
     const res = await fetch('/api/wizard/flash', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ port, ssid, password })
+      body: JSON.stringify({ port, ssid, password, lan_ip })
     });
     const result = await res.json();
     if (res.ok && result.status === 'ok') {
@@ -2646,7 +2731,7 @@ async function wizDoFlash() {
         feedback.style.background = '#fef2f2';
         feedback.style.color = '#991b1b';
         feedback.style.border = '1px solid #fecaca';
-        feedback.innerHTML = `<strong>❌ 写入失败：</strong> ${result.message || '未知错误'}`;
+        feedback.innerHTML = `<strong>❌ 写入失败：</strong> ${result.message || '未知错误'}<br><small style="color: #64748b; margin-top: 6px; display: block;">提示：若电脑无法识别串口，可参考下方【免插线手机无线配网】，无需插线 1 分钟即可连通网关！</small>`;
       }
     }
   } catch (err) {
@@ -2843,7 +2928,7 @@ async function wizDoTestSpeaker() {
     feedback.style.background = '#eff6ff';
     feedback.style.color = '#1e40af';
     feedback.style.border = '1px solid #bfdbfe';
-    feedback.textContent = '正在通过 Edge-TTS 生成 Opus 音频流并通过 WebSocket 推送到开发板...';
+    feedback.textContent = '正在生成测试语音流并推送到开发板 (在线/离线双引擎保障)...';
   }
 
   try {

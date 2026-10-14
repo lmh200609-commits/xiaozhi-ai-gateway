@@ -125,7 +125,7 @@ def main():
     try:
         from gateway.scripts.auto_sync_nvs import check_firewall_rule_exists
         if not check_firewall_rule_exists(args.port):
-            subprocess.run(f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({args.port})" dir=in action=allow protocol=TCP localport={args.port}', shell=True, capture_output=True)
+            subprocess.run(f'netsh advfirewall firewall add rule name="Xiaozhi AI Gateway ({args.port})" dir=in action=allow protocol=TCP localport={args.port} profile=any', shell=True, capture_output=True)
     except Exception:
         pass
 

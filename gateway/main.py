@@ -280,26 +280,30 @@ async def wizard_detect():
     recommended_port = None
     try:
         import serial.tools.list_ports
+        from gateway.scripts.auto_sync_nvs import is_genuine_esp_port
         all_ports = list(serial.tools.list_ports.comports())
         for p in all_ports:
             hwid = (p.hwid or "").lower()
             desc = (p.description or "").lower()
-            is_esp = any(k in hwid or k in desc for k in [
-                "303a", "espressif", "ch340", "ch341", "ch343", 
-                "cp210", "cp2102", "cp2104", "usb-serial", "uart", 
-                "serial", "串行", "usb 串行设备"
-            ])
+            is_bt = any(k in hwid or k in desc for k in ["bthenum", "bluetooth", "蓝牙", "intel(r) active", "sol"])
+            is_esp = is_genuine_esp_port(p)
+            
+            clean_desc = p.description or p.device
+            if is_bt:
+                clean_desc += " (⚠️蓝牙虚拟端口，非开发板)"
+            elif is_esp:
+                clean_desc += " (⭐推荐 ESP32 芯片)"
+
             item = {
                 "port": p.device,
-                "description": p.description or p.device,
+                "description": clean_desc,
                 "hwid": p.hwid or "",
-                "is_esp": is_esp
+                "is_esp": is_esp,
+                "is_bluetooth": is_bt
             }
             ports_info.append(item)
             if is_esp and not recommended_port:
                 recommended_port = p.device
-        if not recommended_port and ports_info:
-            recommended_port = ports_info[0]["port"]
     except Exception as e:
         print(f"[Wizard] Error listing serial ports: {e}")
 
@@ -318,15 +322,7 @@ async def wizard_detect():
         is_5g = wifi_info.get("is_5g", False)
         firewall_allowed = check_firewall_rule_exists(config.port)
 
-        # Fallback to NVS_CSV if system didn't detect Wi-Fi
-        if not current_ssid and NVS_CSV.exists():
-            for line in NVS_CSV.read_text(encoding="utf-8", errors="ignore").splitlines():
-                parts = line.strip().split(",")
-                if len(parts) >= 4:
-                    if parts[0] == "ssid" and parts[3] and parts[3] not in ("YOUR_WIFI_NAME", "vivo X200s"):
-                        current_ssid = parts[3]
-                    elif parts[0] == "password" and parts[3] and parts[3] not in ("YOUR_WIFI_PASSWORD", "lmh200609"):
-                        current_password = parts[3]
+        # 坚决不采用旧 NVS 文件中的过期 Wi-Fi 猜测，杜绝跨电脑/换热点时误填旧网络
     except Exception as e:
         print(f"[Wizard] Error detecting Wi-Fi info: {e}")
 
@@ -395,6 +391,17 @@ async def wizard_wakeup(req: Request):
         return JSONResponse(status_code=400, content={"status": "error", "message": "未找到可用的小智 USB 串口，请检查数据线连接！"})
 
     try:
+        import serial.tools.list_ports
+        for p in serial.tools.list_ports.comports():
+            if p.device == port:
+                hwid = (p.hwid or "").lower()
+                desc = (p.description or "").lower()
+                if any(k in hwid or k in desc for k in ["bthenum", "bluetooth", "蓝牙"]):
+                    return JSONResponse(status_code=400, content={
+                        "status": "error", 
+                        "message": f"【{port}】为电脑自带的蓝牙虚拟端口，并非小智开发板！请使用支持数据传输的 USB-C 数据线重新插拔开发板，并选择真实的 CH340 串口；若设备管理器显示黄色感叹号，请安装 CH340 驱动。"
+                    })
+
         from gateway.scripts.auto_sync_nvs import reset_esp32_via_serial
         loop = asyncio.get_event_loop()
         ok, msg = await loop.run_in_executor(None, reset_esp32_via_serial, port)
@@ -411,6 +418,7 @@ async def wizard_flash(req: Request):
     port = data.get("port")
     ssid = data.get("ssid", "").strip()
     password = data.get("password", "").strip()
+    lan_ip = data.get("lan_ip", "").strip()
 
     if not port:
         return JSONResponse(status_code=400, content={"status": "error", "message": "请选择或指定小智开发板的 USB 串口 (如 COM13)！"})
@@ -418,8 +426,26 @@ async def wizard_flash(req: Request):
         return JSONResponse(status_code=400, content={"status": "error", "message": "Wi-Fi 名称 (SSID) 不能为空！"})
 
     try:
+        import serial.tools.list_ports
+        for p in serial.tools.list_ports.comports():
+            if p.device == port:
+                hwid = (p.hwid or "").lower()
+                desc = (p.description or "").lower()
+                if any(k in hwid or k in desc for k in ["bthenum", "bluetooth", "蓝牙"]):
+                    return JSONResponse(status_code=400, content={
+                        "status": "error", 
+                        "message": f"【{port}】为电脑自带的蓝牙虚拟端口，并非小智开发板！请使用支持数据传输的 USB-C 数据线重新插拔开发板；若无其他串口出现，请安装 CH340 串口驱动。"
+                    })
+
         from gateway.scripts.auto_sync_nvs import get_current_wlan_ip, generate_nvs_bin_file, flash_nvs_bin_file, NVS_CSV, NVS_BIN
-        lan_ip = get_current_wlan_ip()
+        if not lan_ip or lan_ip in ("127.0.0.1", "0.0.0.0"):
+            lan_ip = get_current_wlan_ip()
+
+        if not lan_ip or lan_ip in ("127.0.0.1", "0.0.0.0"):
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": "未能检测到电脑的有效局域网 IP（当前为 127.0.0.1）！开发板无法连接 127.0.0.1。请确认电脑已连接 Wi-Fi 或热点，并在第 2 步手动填写电脑局域网 IP（如 192.168.43.100）。"
+            })
 
         # Update nvs_config.csv
         csv_template = f"""key,type,encoding,value
@@ -442,7 +468,10 @@ version,data,u32,1
         loop = asyncio.get_event_loop()
         ok_flash = await loop.run_in_executor(None, flash_nvs_bin_file, port, NVS_BIN)
         if not ok_flash:
-            return JSONResponse(status_code=500, content={"status": "error", "message": f"写入串口 {port} 失败！请检查串口是否被串口助手等占用，或拔插 USB 重试。"})
+            return JSONResponse(status_code=500, content={
+                "status": "error", 
+                "message": f"写入串口 {port} 失败！请检查：1. 确认该串口为开发板（勿选蓝牙端口）；2. USB 数据线是否支持数据传输；3. 拔插 USB 后重试。"
+            })
 
         return {
             "status": "ok",
@@ -549,11 +578,36 @@ async def wizard_test_speaker(req: Request):
             if frame_count > 3:
                 await asyncio.sleep(0.045)
 
+        # 终极保底：若在线合成被强行阻断且离线异常，直接读取预置测试语音包直推
+        if frame_count == 0:
+            bundled_wav = BASE_DIR / "gateway" / "data" / "test_speaker.wav"
+            if not bundled_wav.exists():
+                bundled_wav = Path(__file__).resolve().parent / "data" / "test_speaker.wav"
+            if bundled_wav.exists():
+                try:
+                    import miniaudio
+                    import numpy as np
+                    from gateway.audio.opus_codec import OpusEncoderWrapper
+                    decoded = miniaudio.decode_file(str(bundled_wav), nchannels=1, sample_rate=24000)
+                    pcm_samples = np.array(decoded.samples, dtype=np.int16)
+                    encoder = OpusEncoderWrapper(sample_rate=24000, channels=1, frame_duration_ms=60)
+                    for offset in range(0, len(pcm_samples), encoder.frame_size):
+                        chunk = pcm_samples[offset:offset + encoder.frame_size]
+                        opus_frame = encoder.encode(chunk)
+                        if opus_frame:
+                            await ws.send_bytes(opus_frame)
+                            frame_count += 1
+                            if frame_count > 3:
+                                await asyncio.sleep(0.045)
+                    print(f"[Wizard Speaker] 已触发预置离线语音直推保底，成功发送 {frame_count} 帧 Opus 音频！")
+                except Exception as ex:
+                    print(f"[Wizard Speaker] 预置离线直推保底失败: {ex}")
+
         await ws.send_text(json.dumps({"session_id": session_id, "type": "tts", "state": "stop"}))
         return {
             "status": "ok",
             "device_id": dev.get("device_id"),
-            "message": f"已成功向开发板 ({dev.get('mac') or dev.get('device_id')}) 推送发音测试流！请听开发板喇叭是否有声音。"
+            "message": f"已成功向开发板 ({dev.get('mac') or dev.get('device_id')}) 推送发音测试流（在线/离线双引擎保障）！请听开发板喇叭是否有声音。"
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": f"语音推流失败: {str(e)}"})
