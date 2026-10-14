@@ -46,7 +46,30 @@ def get_current_wlan_ip():
     精确提取当前连接至路由器/热点的物理网卡 IPv4 地址。
     优先通过路由表 (route print 0.0.0.0) 匹配默认网关接口，彻底排除虚拟网卡 (WSL/VMware/VirtualBox/VPN)。
     """
-    # 1. 优先从路由表查找默认网关绑定的物理接口 IP
+    # 1. 优先从无线网卡匹配（因为开发板通过 Wi-Fi 连接，电脑与开发板必须处于同一 Wi-Fi 子网）
+    try:
+        w_res = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True)
+        w_txt = robust_decode(w_res.stdout)
+        wlan_names = []
+        for line in w_txt.splitlines():
+            line_s = line.strip()
+            if any(line_s.startswith(k) for k in ['名称', 'Name']) and ':' in line_s:
+                wlan_names.append(line_s.split(':', 1)[1].strip())
+        
+        ip_out = subprocess.check_output('ipconfig', text=True, encoding='gbk', errors='ignore')
+        blocks = re.split(r'\r?\n(?=\S)', ip_out)
+        for b in blocks:
+            is_wlan_block = any(wn in b for wn in wlan_names) or ('无线局域网' in b) or ('Wireless LAN' in b)
+            if is_wlan_block and ('IPv4' in b) and ('默认网关' in b or 'Default Gateway' in b):
+                m = re.search(r'IPv4.*?: ([0-9.]+)', b)
+                if m:
+                    ip = m.group(1).strip()
+                    if not ip.startswith('127.') and not ip.startswith('169.254.'):
+                        return ip
+    except Exception:
+        pass
+
+    # 2. 备选：从路由表查找默认网关绑定的物理接口 IP
     try:
         out = subprocess.check_output('route print 0.0.0.0', shell=True, text=True, encoding='gbk', errors='ignore')
         for line in out.splitlines():
@@ -59,7 +82,7 @@ def get_current_wlan_ip():
     except Exception as e:
         print(f"[Auto-Sync] route print failed: {e}")
 
-    # 2. 备选：解析 ipconfig 中带有“默认网关”且非虚拟的适配器
+    # 3. 备选：解析 ipconfig 中带有“默认网关”且非虚拟的适配器
     try:
         out = subprocess.check_output("ipconfig", text=True, encoding="gbk", errors="ignore")
         blocks = re.split(r'\r?\n(?=\S)', out)
@@ -74,7 +97,7 @@ def get_current_wlan_ip():
     except Exception as e:
         print(f"[Auto-Sync] ipconfig failed: {e}")
     
-    # 3. 终极备选：通过 socket 连接判定
+    # 4. 终极备选：通过 socket 连接判定
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(1.5)
@@ -193,17 +216,7 @@ def reset_esp32_via_serial(port):
 def flash_nvs_bin_file(port, bin_path):
     """将 bin 写入开发板 NVS 分区，使用 hard-reset 并在完成后发送精准唤醒脉冲，彻底告别黑屏"""
     ok = False
-    # 1. 优先使用独立子进程执行 esptool，操作系统级确保子进程退出后完全释放 COM 句柄
-    try:
-        cmd = [sys.executable, "-m", "esptool", "-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)]
-        res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), timeout=25)
-        if res.returncode == 0:
-            ok = True
-    except Exception:
-        pass
-
-    # 2. 备选：内存模块直接调用
-    if not ok:
+    if getattr(sys, "frozen", False):
         try:
             import esptool
             esptool.main(["-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)])
@@ -212,6 +225,26 @@ def flash_nvs_bin_file(port, bin_path):
             ok = (se.code == 0)
         except Exception:
             ok = False
+    else:
+        # 开发模式下优先使用独立子进程执行 esptool，操作系统级确保子进程退出后完全释放 COM 句柄
+        try:
+            cmd = [sys.executable, "-m", "esptool", "-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)]
+            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), timeout=25)
+            if res.returncode == 0:
+                ok = True
+        except Exception:
+            pass
+
+        # 备选：内存模块直接调用
+        if not ok:
+            try:
+                import esptool
+                esptool.main(["-p", port, "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)])
+                ok = True
+            except SystemExit as se:
+                ok = (se.code == 0)
+            except Exception:
+                ok = False
 
     # 刷写完成后，等待串口驱动释放，再次发送精准 DTR/RTS 硬件唤醒脉冲作为双保险
     if ok:

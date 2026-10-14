@@ -2594,10 +2594,28 @@ async function wizDetectData() {
 
     if (!userManuallyEditedSsid && data.current_ssid) {
       if (ssidIn) ssidIn.value = data.current_ssid;
-      if (passIn && data.current_password) passIn.value = data.current_password;
+      if (passIn) {
+        if (data.current_password) {
+          passIn.value = data.current_password;
+          passIn.placeholder = "已自动获取当前 Wi-Fi 密码";
+          passIn.style.borderColor = "#cbd5e1";
+        } else if (!passIn.value) {
+          passIn.placeholder = "⚠️ 请输入当前热点/Wi-Fi 的连接密码";
+          passIn.style.borderColor = "#f59e0b";
+        }
+      }
     } else if (ssidIn && !ssidIn.value && data.current_ssid) {
       ssidIn.value = data.current_ssid;
-      if (passIn && data.current_password) passIn.value = data.current_password;
+      if (passIn) {
+        if (data.current_password) {
+          passIn.value = data.current_password;
+          passIn.placeholder = "已自动获取当前 Wi-Fi 密码";
+          passIn.style.borderColor = "#cbd5e1";
+        } else if (!passIn.value) {
+          passIn.placeholder = "⚠️ 请输入当前热点/Wi-Fi 的连接密码";
+          passIn.style.borderColor = "#f59e0b";
+        }
+      }
     }
 
     updateWifiHint();
@@ -2693,9 +2711,14 @@ async function wizDoFlash() {
     return;
   }
   if (!password) {
-    const confirmNoPass = confirm(`⚠️ 提示：您填写的 Wi-Fi 密码为空！\n如果当前 Wi-Fi/热点【${ssid}】是有密码的，密码为空将导致开发板无法连接并自动退回配网模式！\n\n确定这是一个无密码的开放热点吗？`);
+    const confirmNoPass = confirm(`⚠️ 提示：您填写的 Wi-Fi 密码为空！\n\n如果当前手机热点【${ssid}】是有密码的，写入空密码将直接导致开发板无法连网，并退回到配网模式！\n\n• 若热点确实没有密码，请点击【确定】继续写入；\n• 若热点有密码，请点击【取消】并在密码框中输入密码！`);
     if (!confirmNoPass) {
-      document.getElementById('wiz-step2-pass')?.focus();
+      const pBox = document.getElementById('wiz-step2-pass');
+      if (pBox) {
+        pBox.focus();
+        pBox.style.borderColor = '#ef4444';
+        pBox.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.2)';
+      }
       return;
     }
   }
