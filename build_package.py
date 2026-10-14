@@ -68,6 +68,7 @@ def build():
         "--collect-all", "PIL",
         "--collect-all", "tokenizers",
         "--collect-all", "psutil",
+        "--collect-all", "esptool",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
         "--exclude-module", "scipy",
@@ -89,6 +90,24 @@ def build():
         return False
 
     print("[3/5] 编译完成，正在组装纯净空白版发布包结构...")
+    # 0. Ensure esptool stub flasher binaries are bundled
+    try:
+        import esptool
+        esptool_pkg_dir = Path(esptool.__file__).parent
+        src_stubs = esptool_pkg_dir / "targets" / "stub_flasher"
+        if src_stubs.exists():
+            dst_stubs = output_app_dir / "_internal" / "esptool" / "targets" / "stub_flasher"
+            dst_stubs.mkdir(parents=True, exist_ok=True)
+            for f in src_stubs.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(src_stubs)
+                    target_f = dst_stubs / rel
+                    target_f.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, target_f)
+            print("  [✓] 已完整打包 esptool 芯片硬件刷写 stub_flasher 固件")
+    except Exception as e:
+        print(f"  [!] 打包 esptool stub_flasher 提示: {e}")
+
     # 1. Copy clean config.json to both app root and gateway/
     clean_config_src = PROJECT_ROOT / "gateway" / "config.example.json"
     if clean_config_src.exists():

@@ -285,12 +285,14 @@ def flash_nvs_bin_file(port, bin_path):
     if is_usb_jtag:
         configs_to_try = [
             ["--chip", "esp32s3", "-p", port, "--before", "usb-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
+            ["--chip", "esp32s3", "-p", port, "--before", "usb-reset", "--no-stub", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
             ["--chip", "auto", "-p", port, "--before", "default-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
             ["--chip", "esp32s3", "-p", port, "--before", "no-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)]
         ]
     else:
         configs_to_try = [
             ["--chip", "auto", "-p", port, "--before", "default-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
+            ["--chip", "auto", "-p", port, "--before", "default-reset", "--no-stub", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
             ["--chip", "esp32s3", "-p", port, "--before", "usb-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)],
             ["--chip", "esp32s3", "-p", port, "--before", "no-reset", "--after", "hard-reset", "write-flash", "0x9000", str(bin_path)]
         ]

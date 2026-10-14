@@ -98,9 +98,17 @@ async def startup_event():
 async def get_status():
     safe_devices = []
     for d in active_devices.values():
-        dev_copy = dict(d)
-        dev_copy.pop("ws", None)
-        safe_devices.append(dev_copy)
+        safe_devices.append({
+            "device_id": d.get("device_id"),
+            "client_id": d.get("client_id"),
+            "ip": d.get("ip"),
+            "connected_at": d.get("connected_at"),
+            "last_active": d.get("last_active"),
+            "status": d.get("status", "online"),
+            "volume": d.get("volume", 70),
+            "mac": d.get("mac") or d.get("device_id"),
+            "version": d.get("version", "v2.2.6")
+        })
 
     lan_ip = "127.0.0.1"
     try:
@@ -133,9 +141,17 @@ async def kiosk_ws_endpoint(websocket: WebSocket):
         # Send initial status snapshot
         safe_devices = []
         for d in active_devices.values():
-            dev_copy = dict(d)
-            dev_copy.pop("ws", None)
-            safe_devices.append(dev_copy)
+            safe_devices.append({
+                "device_id": d.get("device_id"),
+                "client_id": d.get("client_id"),
+                "ip": d.get("ip"),
+                "connected_at": d.get("connected_at"),
+                "last_active": d.get("last_active"),
+                "status": d.get("status", "online"),
+                "volume": d.get("volume", 70),
+                "mac": d.get("mac") or d.get("device_id"),
+                "version": d.get("version", "v2.2.6")
+            })
         await websocket.send_text(json.dumps({
             "type": "init",
             "active_video": current_active_video,
